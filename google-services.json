@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "891098814043",
+    "project_id": "guessify-bcbdd",
+    "storage_bucket": "guessify-bcbdd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:891098814043:android:44ae2eec8fc126caa3517e",
+        "android_client_info": {
+          "package_name": "com.innogen.guessify"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "891098814043-qq57j5p9v5epjj3d98mffn95jj0qkpvp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBtU2-QqCyV1_wKsNHKRcZfR24fhCFF00A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "891098814043-qq57j5p9v5epjj3d98mffn95jj0qkpvp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
