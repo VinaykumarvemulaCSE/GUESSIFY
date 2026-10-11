@@ -39,7 +39,7 @@ export const NeonButton: React.FC<NeonButtonProps> = ({
     if (Platform.OS !== 'web') {
       try {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      } catch (e) {}
+      } catch {}
     }
     onPress();
   };

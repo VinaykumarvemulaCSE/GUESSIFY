@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
-import { COLORS, RADIUS, SPACING } from '../constants/theme';
+import { COLORS, SPACING } from '../constants/theme';
 import { NeonButton } from '../components/common/NeonButton';
 import { NeuralBulbLogo } from '../components/common/NeuralBulbLogo';
 
 import { StorageService } from '../services/storage';
-
-const { width } = Dimensions.get('window');
 
 const SLIDES = [
   {

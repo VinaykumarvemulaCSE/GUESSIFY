@@ -6,7 +6,7 @@ import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
 
 export const LeaderboardScreen: React.FC = () => {
-  const { leaderboardUsers, navigateTo, refreshLeaderboard, isFirebaseActive, profile } = useApp();
+  const { leaderboardUsers, navigateTo, refreshLeaderboard, profile } = useApp();
   const [period, setPeriod] = useState<'weekly' | 'monthly' | 'allTime'>('weekly');
   const [refreshing, setRefreshing] = useState(false);
 

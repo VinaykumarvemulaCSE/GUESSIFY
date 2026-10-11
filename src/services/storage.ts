@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { UserProfile, MatchHistoryItem, AppSettings, SoloGameSession } from '../types';
+import { UserProfile, MatchHistoryItem, AppSettings } from '../types';
 
 const STORAGE_KEYS = {
   USER_PROFILE: '@guessify_user_profile',
@@ -39,7 +39,7 @@ export const StorageService = {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.USER_PROFILE);
       return data ? JSON.parse(data) : DEFAULT_PROFILE;
-    } catch (e) {
+    } catch {
       return DEFAULT_PROFILE;
     }
   },
@@ -48,7 +48,7 @@ export const StorageService = {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.USER_PROFILE);
       return data ? JSON.parse(data) : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   },
@@ -56,20 +56,20 @@ export const StorageService = {
   async clearProfile(): Promise<void> {
     try {
       await AsyncStorage.removeItem(STORAGE_KEYS.USER_PROFILE);
-    } catch (e) {}
+    } catch {}
   },
 
   async saveProfile(profile: UserProfile): Promise<void> {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(profile));
-    } catch (e) {}
+    } catch {}
   },
 
   async getSettings(): Promise<AppSettings> {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.APP_SETTINGS);
       return data ? JSON.parse(data) : DEFAULT_SETTINGS;
-    } catch (e) {
+    } catch {
       return DEFAULT_SETTINGS;
     }
   },
@@ -77,7 +77,7 @@ export const StorageService = {
   async saveSettings(settings: AppSettings): Promise<void> {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.APP_SETTINGS, JSON.stringify(settings));
-    } catch (e) {}
+    } catch {}
   },
 
   getHistoryKey(uid?: string): string {
@@ -95,7 +95,7 @@ export const StorageService = {
         if (legacy) return JSON.parse(legacy);
       }
       return [];
-    } catch (e) {
+    } catch {
       return [];
     }
   },
@@ -105,26 +105,26 @@ export const StorageService = {
       const history = await this.getMatchHistory(uid);
       const updated = [match, ...history];
       await AsyncStorage.setItem(this.getHistoryKey(uid), JSON.stringify(updated));
-    } catch (e) {}
+    } catch {}
   },
 
   async saveMatchHistory(history: MatchHistoryItem[], uid?: string): Promise<void> {
     try {
       await AsyncStorage.setItem(this.getHistoryKey(uid), JSON.stringify(history));
-    } catch (e) {}
+    } catch {}
   },
 
   async clearHistory(uid?: string): Promise<void> {
     try {
       await AsyncStorage.removeItem(this.getHistoryKey(uid));
-    } catch (e) {}
+    } catch {}
   },
 
   async hasSeenOnboarding(): Promise<boolean> {
     try {
       const seen = await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_SEEN);
       return seen === 'true';
-    } catch (e) {
+    } catch {
       return false;
     }
   },
@@ -132,6 +132,6 @@ export const StorageService = {
   async setSeenOnboarding(): Promise<void> {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.ONBOARDING_SEEN, 'true');
-    } catch (e) {}
+    } catch {}
   },
 };

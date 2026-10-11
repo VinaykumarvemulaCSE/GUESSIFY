@@ -3,10 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
-import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
+import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { CustomNumpad } from '../components/common/CustomNumpad';
-import { FeedbackBadge } from '../components/common/FeedbackBadge';
-import { TURN_TIMEOUT_SECONDS } from '../constants/gameRules';
 import { GuessResult } from '../types';
 
 export const LiveMultiplayerScreen: React.FC = () => {

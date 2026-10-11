@@ -131,9 +131,10 @@ export const SignUpScreen: React.FC = () => {
           </View>
 
           <NeonButton
-            title="CREATE ACCOUNT"
+            title={loading ? 'CREATING ACCOUNT...' : 'CREATE ACCOUNT'}
             variant="primary"
             size="lg"
+            disabled={loading}
             onPress={handleSignUp}
             style={{ width: '100%', marginTop: SPACING.md }}
           />

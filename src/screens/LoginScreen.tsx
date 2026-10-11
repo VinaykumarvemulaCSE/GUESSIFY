@@ -16,7 +16,7 @@ import { NeonButton } from '../components/common/NeonButton';
 import { NeuralBulbLogo } from '../components/common/NeuralBulbLogo';
 
 export const LoginScreen: React.FC = () => {
-  const { navigateTo, loginWithEmail, loginWithGoogle, loginAsGuest } = useApp();
+  const { navigateTo, loginWithEmail, loginAsGuest } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -34,16 +34,6 @@ export const LoginScreen: React.FC = () => {
     setLoading(false);
     if (!res.success) {
       setError(res.error || 'Login failed. Please check your credentials.');
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setError('');
-    setLoading(true);
-    const res = await loginWithGoogle();
-    setLoading(false);
-    if (!res.success) {
-      setError(res.error || 'Google Sign-In failed.');
     }
   };
 
@@ -121,9 +111,10 @@ export const LoginScreen: React.FC = () => {
           </TouchableOpacity>
 
           <NeonButton
-            title="SIGN IN"
+            title={loading ? 'SIGNING IN...' : 'SIGN IN'}
             variant="primary"
             size="lg"
+            disabled={loading}
             onPress={handleLogin}
             style={{ width: '100%', marginTop: SPACING.sm }}
           />

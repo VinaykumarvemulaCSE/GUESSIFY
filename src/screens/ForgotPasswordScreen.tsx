@@ -82,9 +82,10 @@ export const ForgotPasswordScreen: React.FC = () => {
             </View>
 
             <NeonButton
-              title="SEND RESET LINK"
+              title={loading ? 'SENDING...' : 'SEND RESET LINK'}
               variant="primary"
               size="lg"
+              disabled={loading}
               onPress={handleReset}
               style={{ width: '100%', marginTop: SPACING.lg }}
             />

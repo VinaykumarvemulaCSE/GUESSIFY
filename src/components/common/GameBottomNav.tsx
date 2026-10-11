@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '../../context/AppContext';
-import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
+import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 
 export const GameBottomNav: React.FC = () => {
   const { currentScreen, navigateTo, settings } = useApp();

@@ -11,27 +11,11 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      },
-      "env": {
-        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyBtU2-QqCyV1_wKsNHKRcZfR24fhCFF00A",
-        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "guessify-bcbdd.firebaseapp.com",
-        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "guessify-bcbdd",
-        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "guessify-bcbdd.firebasestorage.app",
-        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "891098814043",
-        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:891098814043:android:44ae2eec8fc126caa3517e"
       }
     },
     "production": {
       "android": {
         "buildType": "app-bundle"
-      },
-      "env": {
-        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyBtU2-QqCyV1_wKsNHKRcZfR24fhCFF00A",
-        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "guessify-bcbdd.firebaseapp.com",
-        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "guessify-bcbdd",
-        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "guessify-bcbdd.firebasestorage.app",
-        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "891098814043",
-        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:891098814043:android:44ae2eec8fc126caa3517e"
       }
     }
   },

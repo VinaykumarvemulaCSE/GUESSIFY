@@ -21,7 +21,6 @@ export const MultiplayerResultScreen: React.FC = () => {
   }
 
   const isMeWinner = activeRoom.winnerUid === profile.uid;
-  const isHost = activeRoom.hostUid === profile.uid;
   const winnerName = isMeWinner
     ? profile.displayName
     : activeRoom.guestName || 'Opponent';

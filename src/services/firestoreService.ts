@@ -3,11 +3,9 @@ import {
   doc,
   getDocs,
   setDoc,
-  updateDoc,
   query,
   orderBy,
   limit,
-  serverTimestamp,
 } from 'firebase/firestore';
 import { db, auth, isFirebaseConfigured } from './firebaseConfig';
 import { LeaderboardUser, MatchHistoryItem, UserProfile } from '../types';

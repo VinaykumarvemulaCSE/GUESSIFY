@@ -13,8 +13,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '../context/AppContext';
-import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
-import { MAX_ATTEMPTS, MAX_HINTS } from '../constants/gameRules';
+import { COLORS, RADIUS, SPACING } from '../constants/theme';
+import { MAX_HINTS } from '../constants/gameRules';
 import { GuessResult } from '../types';
 
 export const SoloGameScreen: React.FC = () => {

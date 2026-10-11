@@ -31,7 +31,7 @@ export const CustomNumpad: React.FC<CustomNumpadProps> = ({
         } else {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
-      } catch (e) {}
+      } catch {}
     }
   };
 

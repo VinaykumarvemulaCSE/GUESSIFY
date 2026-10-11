@@ -1,14 +1,14 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
+import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { NeuralBulbLogo } from '../components/common/NeuralBulbLogo';
 import { StorageService } from '../services/storage';
 
 export const SplashScreen: React.FC = () => {
   const { navigateTo } = useApp();
 
-  const proceedToApp = async () => {
+  const proceedToApp = useCallback(async () => {
     try {
       const seenOnboarding = await StorageService.hasSeenOnboarding();
       if (!seenOnboarding) {
@@ -27,14 +27,14 @@ export const SplashScreen: React.FC = () => {
     } catch {
       navigateTo('LOGIN');
     }
-  };
+  }, [navigateTo]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       proceedToApp();
     }, 1800);
     return () => clearTimeout(timer);
-  }, []);
+  }, [proceedToApp]);
 
   return (
     <TouchableOpacity

@@ -12,7 +12,7 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebaseConfig';
-import { MultiplayerRoom, MultiplayerMode, GuessResult, GuessRecord } from '../types';
+import { MultiplayerRoom, MultiplayerMode, GuessResult } from '../types';
 import {
   generateRoomCode,
   ROOM_EXPIRY_MS,

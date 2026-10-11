@@ -13,7 +13,6 @@ import {
 import { StorageService } from '../services/storage';
 import {
   DIFFICULTY_CONFIGS,
-  MAX_ATTEMPTS,
   calculateSoloScore,
   generateHints,
   calculateGuessFeedback,
@@ -279,7 +278,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const guestProfile = await AuthService.loginAsGuest();
       setProfile(guestProfile);
       navigateTo('DASHBOARD');
-    } catch (e) {
+    } catch {
       const updated: UserProfile = {
         ...profile,
         uid: `guest_${Date.now()}`,
