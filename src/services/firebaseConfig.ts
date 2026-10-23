@@ -3,6 +3,7 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence, getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { log } from '../lib/log';
 
 // Read Expo Public Environment Variables
 const firebaseConfig = {
@@ -36,17 +37,17 @@ if (isFirebaseConfigured) {
         auth = getAuth(app);
       }
       db = getFirestore(app);
-      console.log('[Firebase] Initialized successfully with projectId:', firebaseConfig.projectId);
+      log.info('Firebase', 'Initialized successfully with projectId:', firebaseConfig.projectId);
     } else {
       app = getApp();
       auth = getAuth(app);
       db = getFirestore(app);
     }
   } catch (error) {
-    console.warn('[Firebase] Initialization error:', error);
+    log.warn('Firebase', 'Initialization error:', error);
   }
 } else {
-  console.log('[Firebase] Running in offline / simulation mode. (Fill keys in .env to connect to live Firebase)');
+  log.info('Firebase', 'Running in offline / simulation mode. (Fill keys in .env to connect to live Firebase)');
 }
 
 export { app, auth, db };

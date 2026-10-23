@@ -7,12 +7,10 @@ import {
   onAuthStateChanged,
   updateProfile,
   User,
-  GoogleAuthProvider,
-  signInWithPopup,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { Platform } from 'react-native';
 import { auth, db, isFirebaseConfigured } from './firebaseConfig';
+import { log } from '../lib/log';
 import { UserProfile } from '../types';
 import { StorageService } from './storage';
 
@@ -27,7 +25,7 @@ export const AuthService = {
       const cred = await signInAnonymously(auth);
       return cred.user;
     } catch (e) {
-      console.warn('[AuthService] Anonymous sign-in fallback failed:', e);
+      log.warn('AuthService', 'Anonymous sign-in fallback failed:', e);
       return null;
     }
   },
@@ -46,7 +44,7 @@ export const AuthService = {
           const profile = await AuthService.fetchOrInitUserProfile(firebaseUser);
           onUserChanged(profile);
         } catch (error) {
-          console.warn('[AuthService] Error fetching profile:', error);
+          log.warn('AuthService', 'Error fetching profile:', error);
         }
       } else {
         onUserChanged(null);
@@ -208,45 +206,6 @@ export const AuthService = {
   },
 
   /**
-   * Google Sign In
-   */
-  async loginWithGoogle(): Promise<UserProfile> {
-    if (!isFirebaseConfigured || !auth) {
-      throw new Error('Firebase Auth is not initialized');
-    }
-
-    if (Platform.OS === 'web' && typeof signInWithPopup === 'function') {
-      try {
-        const provider = new GoogleAuthProvider();
-        provider.setCustomParameters({ prompt: 'select_account' });
-        const cred = await signInWithPopup(auth, provider);
-        const profile = await AuthService.fetchOrInitUserProfile(cred.user);
-        await StorageService.saveProfile(profile);
-        return profile;
-      } catch (err: any) {
-        throw new Error(err?.message || 'Google Sign-In failed on web');
-      }
-    }
-
-    // Native Mobile / Emulator support without crashing on undefined signInWithPopup:
-    const cred = await signInAnonymously(auth);
-    const existing = await StorageService.getProfile();
-    const googleProfile: UserProfile = {
-      ...existing,
-      uid: cred.user.uid,
-      displayName: existing.displayName === 'Cipher Cadet' ? 'Google Champion' : existing.displayName,
-      email: cred.user.email || 'google.user@guessify.app',
-      isGuest: false,
-    };
-    await StorageService.saveProfile(googleProfile);
-    if (db) {
-      const userDocRef = doc(db, 'users', cred.user.uid);
-      await setDoc(userDocRef, googleProfile, { merge: true });
-    }
-    return googleProfile;
-  },
-
-  /**
    * Password Reset
    */
   async resetPassword(email: string): Promise<void> {
@@ -272,7 +231,7 @@ export const AuthService = {
         const userDocRef = doc(db, 'users', uid);
         await updateDoc(userDocRef, { displayName: newName.trim() });
       } catch (e) {
-        console.warn('[AuthService] Update display name in firestore error:', e);
+        log.warn('AuthService', 'Update display name in firestore error:', e);
       }
     }
   },

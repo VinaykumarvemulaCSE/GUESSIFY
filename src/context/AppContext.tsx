@@ -16,11 +16,13 @@ import {
   calculateSoloScore,
   generateHints,
   calculateGuessFeedback,
+  MULTIPLAYER_POINTS,
 } from '../constants/gameRules';
 import { AuthService } from '../services/authService';
 import { FirestoreMultiplayer } from '../services/firestoreMultiplayer';
 import { FirestoreService } from '../services/firestoreService';
 import { isFirebaseConfigured } from '../services/firebaseConfig';
+import { log } from '../lib/log';
 
 export type ScreenName =
   | 'SPLASH'
@@ -55,10 +57,8 @@ interface AppContextType {
   // Profile & Auth
   profile: UserProfile;
   isFirebaseActive: boolean;
-  loginAsUser: (name: string, email: string) => Promise<void>;
   loginWithEmail: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   signUpUser: (name: string, email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
-  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   loginAsGuest: () => Promise<void>;
   resetPasswordEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
   updateDisplayName: (name: string) => Promise<void>;
@@ -123,7 +123,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     soundEnabled: true,
     hapticsEnabled: true,
     keypadVibration: true,
-    notifications: true,
   });
 
   const [matchHistory, setMatchHistory] = useState<MatchHistoryItem[]>([]);
@@ -163,7 +162,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ]);
       }
     } catch (e) {
-      console.warn('[AppContext] Failed to refresh leaderboard:', e);
+      log.warn('AppContext', 'Failed to refresh leaderboard:', e);
     }
   };
 
@@ -227,17 +226,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Auth Operations
-  const loginWithGoogle = async () => {
-    try {
-      const loggedProfile = await AuthService.loginWithGoogle();
-      setProfile(loggedProfile);
-      navigateTo('DASHBOARD');
-      return { success: true };
-    } catch (e: any) {
-      return { success: false, error: e?.message || 'Google sign in failed' };
-    }
-  };
-
   const loginWithEmail = async (email: string, pass: string) => {
     try {
       const loggedProfile = await AuthService.login(email, pass);
@@ -258,19 +246,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e: any) {
       return { success: false, error: e?.message || 'Signup failed' };
     }
-  };
-
-  const loginAsUser = async (name: string, email: string) => {
-    const updated: UserProfile = {
-      ...profile,
-      uid: `user_${Date.now()}`,
-      displayName: name,
-      email,
-      isGuest: false,
-    };
-    setProfile(updated);
-    await StorageService.saveProfile(updated);
-    navigateTo('DASHBOARD');
   };
 
   const loginAsGuest = async () => {
@@ -549,7 +524,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (lastProcessedRoomResultRef.current !== resultKey && updated.winnerUid) {
           lastProcessedRoomResultRef.current = resultKey;
           const isMeWinner = updated.winnerUid === profile.uid;
-          const pointsEarned = isMeWinner ? 150 : 45;
+          const pointsEarned = isMeWinner ? MULTIPLAYER_POINTS.WIN : MULTIPLAYER_POINTS.LOSS;
           const myAttempts = updated.guesses.filter((g) => g.uid === profile.uid).length;
 
           const matchItem: MatchHistoryItem = {
@@ -672,10 +647,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         goBack,
         profile,
         isFirebaseActive: isFirebaseConfigured,
-        loginAsUser,
         loginWithEmail,
         signUpUser,
-        loginWithGoogle,
         loginAsGuest,
         resetPasswordEmail,
         updateDisplayName,

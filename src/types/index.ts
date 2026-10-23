@@ -27,7 +27,6 @@ export interface HintItem {
   title: string;
   description: string;
   unlocked: boolean;
-  penalty: number;
 }
 
 export interface SoloGameSession {
@@ -130,5 +129,4 @@ export interface AppSettings {
   soundEnabled: boolean;
   hapticsEnabled: boolean;
   keypadVibration: boolean;
-  notifications: boolean;
 }

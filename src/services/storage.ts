@@ -12,7 +12,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   soundEnabled: true,
   hapticsEnabled: true,
   keypadVibration: true,
-  notifications: true,
 };
 
 const DEFAULT_PROFILE: UserProfile = {

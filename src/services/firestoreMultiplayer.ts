@@ -19,17 +19,20 @@ import {
   TURN_TIMEOUT_SECONDS,
   calculateGuessFeedback,
 } from '../constants/gameRules';
-import { multiplayerService as localMultiplayerService } from './multiplayerService';
+
+function requireDb() {
+  if (!isFirebaseConfigured || !db) {
+    throw new Error('Firebase is not configured. Add your credentials to .env and restart the app.');
+  }
+  return db;
+}
 
 export const FirestoreMultiplayer = {
   /**
    * Create a new room in Firestore
    */
   async createRoom(hostUid: string, hostName: string): Promise<MultiplayerRoom> {
-    if (!isFirebaseConfigured || !db) {
-      return localMultiplayerService.createRoom(hostUid, hostName);
-    }
-
+    const database = requireDb();
     const code = generateRoomCode();
     const roomId = `room_${code}`;
     const now = Date.now();
@@ -47,7 +50,7 @@ export const FirestoreMultiplayer = {
       rematchAgreed: [],
     };
 
-    const roomRef = doc(db, 'rooms', roomId);
+    const roomRef = doc(database, 'rooms', roomId);
     await setDoc(roomRef, room);
     return room;
   },
@@ -60,12 +63,9 @@ export const FirestoreMultiplayer = {
     guestUid: string,
     guestName: string
   ): Promise<{ success: boolean; room?: MultiplayerRoom; error?: string }> {
-    if (!isFirebaseConfigured || !db) {
-      return localMultiplayerService.joinRoom(code, guestUid, guestName);
-    }
-
+    const database = requireDb();
     const cleanCode = code.trim().toUpperCase();
-    const roomsRef = collection(db, 'rooms');
+    const roomsRef = collection(database, 'rooms');
     const q = query(roomsRef, where('code', '==', cleanCode));
     const snapshot = await getDocs(q);
 
@@ -90,7 +90,7 @@ export const FirestoreMultiplayer = {
       status: 'MODE_SELECTION',
     };
 
-    await updateDoc(doc(db, 'rooms', room.roomId), updatedData);
+    await updateDoc(doc(database, 'rooms', room.roomId), updatedData);
     return { success: true, room: { ...room, ...updatedData } };
   },
 
@@ -98,12 +98,8 @@ export const FirestoreMultiplayer = {
    * Subscribe to real-time updates for a room
    */
   subscribeToRoom(roomId: string, onUpdate: (room: MultiplayerRoom) => void): Unsubscribe {
-    if (!isFirebaseConfigured || !db) {
-      // Local fallback subscriber
-      return localMultiplayerService.subscribe(roomId.replace('room_', ''), onUpdate);
-    }
-
-    const roomRef = doc(db, 'rooms', roomId);
+    const database = requireDb();
+    const roomRef = doc(database, 'rooms', roomId);
     return onSnapshot(roomRef, (docSnap) => {
       if (docSnap.exists()) {
         onUpdate(docSnap.data() as MultiplayerRoom);
@@ -115,16 +111,8 @@ export const FirestoreMultiplayer = {
    * Host chooses mode
    */
   async setMode(roomId: string, mode: MultiplayerMode): Promise<void> {
-    if (!isFirebaseConfigured || !db) {
-      const code = roomId.replace('room_', '');
-      const room = localMultiplayerService.getRoom(code);
-      if (room) {
-        localMultiplayerService.setMode(code, room.hostUid, mode);
-      }
-      return;
-    }
-
-    const roomRef = doc(db, 'rooms', roomId);
+    const database = requireDb();
+    const roomRef = doc(database, 'rooms', roomId);
     await updateDoc(roomRef, {
       selectedMode: mode,
     });
@@ -134,12 +122,8 @@ export const FirestoreMultiplayer = {
    * Start round
    */
   async startRound(roomId: string, secret?: number): Promise<void> {
-    if (!isFirebaseConfigured || !db) {
-      localMultiplayerService.startRound(roomId.replace('room_', ''), secret);
-      return;
-    }
-
-    const roomRef = doc(db, 'rooms', roomId);
+    const database = requireDb();
+    const roomRef = doc(database, 'rooms', roomId);
     const snap = await getDoc(roomRef);
     if (!snap.exists()) return;
 
@@ -178,12 +162,8 @@ export const FirestoreMultiplayer = {
     playerName: string,
     num: number
   ): Promise<GuessResult | null> {
-    if (!isFirebaseConfigured || !db) {
-      const res = localMultiplayerService.submitGuess(roomId.replace('room_', ''), uid, playerName, num);
-      return res ? res.result : null;
-    }
-
-    const roomRef = doc(db, 'rooms', roomId);
+    const database = requireDb();
+    const roomRef = doc(database, 'rooms', roomId);
     const snap = await getDoc(roomRef);
     if (!snap.exists()) return null;
 
@@ -228,12 +208,8 @@ export const FirestoreMultiplayer = {
    * Request rematch
    */
   async requestRematch(roomId: string, uid: string): Promise<void> {
-    if (!isFirebaseConfigured || !db) {
-      localMultiplayerService.requestRematch(roomId.replace('room_', ''), uid);
-      return;
-    }
-
-    const roomRef = doc(db, 'rooms', roomId);
+    const database = requireDb();
+    const roomRef = doc(database, 'rooms', roomId);
     await updateDoc(roomRef, {
       rematchAgreed: arrayUnion(uid),
     });
@@ -252,12 +228,8 @@ export const FirestoreMultiplayer = {
    * Leave or close room
    */
   async leaveRoom(roomId: string): Promise<void> {
-    if (!isFirebaseConfigured || !db) {
-      localMultiplayerService.leaveRoom(roomId.replace('room_', ''));
-      return;
-    }
-
-    const roomRef = doc(db, 'rooms', roomId);
+    const database = requireDb();
+    const roomRef = doc(database, 'rooms', roomId);
     await updateDoc(roomRef, {
       status: 'CLOSED',
     });

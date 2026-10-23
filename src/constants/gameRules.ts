@@ -33,8 +33,8 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
   },
 };
 
-export const MAX_ATTEMPTS = 10;
 export const MAX_HINTS = 2;
+export const HINT_PENALTY = 50;
 export const TURN_TIMEOUT_SECONDS = 30;
 export const ROOM_CODE_LENGTH = 6;
 export const ROOM_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
@@ -47,7 +47,7 @@ export function calculateSoloScore(
   hintsUsed: number
 ): number {
   const base = DIFFICULTY_CONFIGS[difficulty].baseScore;
-  const rawScore = base - 25 * (attempts - 1) - 50 * hintsUsed;
+  const rawScore = base - 25 * (attempts - 1) - HINT_PENALTY * hintsUsed;
   return Math.max(50, rawScore);
 }
 
@@ -115,14 +115,12 @@ export function generateHints(target: number, min: number, max: number) {
       title: 'Range Radar',
       description: `The secret number lies between ${hintMin} and ${hintMax}.`,
       unlocked: false,
-      penalty: 50,
     },
     {
       id: 2,
       title: 'Digit Matrix',
       description: `It is an ${isEven ? 'EVEN' : 'ODD'} number with a digit sum of ${digitSum}.`,
       unlocked: false,
-      penalty: 50,
     },
   ];
 }

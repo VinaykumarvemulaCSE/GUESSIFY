@@ -8,6 +8,7 @@ import {
   limit,
 } from 'firebase/firestore';
 import { db, auth, isFirebaseConfigured } from './firebaseConfig';
+import { log } from '../lib/log';
 import { LeaderboardUser, MatchHistoryItem, UserProfile } from '../types';
 import { AuthService } from './authService';
 
@@ -71,7 +72,7 @@ export const FirestoreService = {
         tier: FirestoreService.calculateTier(u.points),
       }));
     } catch (e) {
-      console.warn('[FirestoreService] Error fetching leaderboard:', e);
+      log.warn('FirestoreService', 'Error fetching leaderboard:', e);
       return [];
     }
   },
@@ -132,7 +133,7 @@ export const FirestoreService = {
         );
       }
     } catch (e) {
-      console.warn('[FirestoreService] Error recording game result:', e);
+      log.warn('FirestoreService', 'Error recording game result:', e);
     }
   },
 
@@ -151,7 +152,7 @@ export const FirestoreService = {
       });
       return items;
     } catch (e) {
-      console.warn('[FirestoreService] Error fetching user history:', e);
+      log.warn('FirestoreService', 'Error fetching user history:', e);
       return [];
     }
   },

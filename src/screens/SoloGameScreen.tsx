@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '../context/AppContext';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
-import { MAX_HINTS } from '../constants/gameRules';
+import { HINT_PENALTY, MAX_HINTS } from '../constants/gameRules';
 import { GuessResult } from '../types';
 
 export const SoloGameScreen: React.FC = () => {
@@ -655,7 +655,7 @@ export const SoloGameScreen: React.FC = () => {
                 <View key={hint.id} style={styles.hintItemCard}>
                   <View style={styles.hintItemHeader}>
                     <Text style={styles.hintItemTitle}>{hint.title}</Text>
-                    <Text style={styles.hintItemPenalty}>-{hint.penalty} PTS</Text>
+                    <Text style={styles.hintItemPenalty}>-{HINT_PENALTY} PTS</Text>
                   </View>
                   <Text style={styles.hintItemDesc}>
                     {hint.unlocked ? hint.description : 'Decrypted algorithm intel hidden.'}
