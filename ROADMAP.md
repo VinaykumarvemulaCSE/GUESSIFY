@@ -28,17 +28,21 @@ Phases 0–4 = **~13–16 focused days**. Do not compress Phase 5; it is a Googl
 
 **Goal:** know exactly what ships, remove everything that does not.
 
+**Status:** code cleanup done 23 Oct 2026 (commit `99d8c83`); repo push and tag still blocked on GitHub authentication.
+
 - [ ] `git init` is already done; push to a **private** GitHub repo today (3 commits, no remote — one disk failure and the app is gone).
-- [ ] Delete stale `android/` prebuild (`versionCode 1`, `versionName 1.0.0`) and `dist/`. EAS regenerates native folders from `app.json`.
-- [ ] `npx expo install --fix` → resolves the two patch-level mismatches.
-- [ ] Remove unused deps: `expo-linear-gradient`, `react-native-svg`, `expo-font`, `react-dom`, `react-native-web`, `@expo/ngrok`.
-- [ ] Remove the web target from `app.json` and the `web` script (decision D4).
-- [ ] Delete dead code per PRD §11: `multiplayerService.ts`, fake Google path, `loginAsUser`, `MAX_ATTEMPTS`, `hint.penalty`, `settings.notifications` toggle, `googleBtn` styles.
-- [ ] Replace `console.log/warn` with `lib/log.ts` (no-op in release).
-- [ ] Add a `README.md` with run/build instructions and a `.env.example` that matches the six `EXPO_PUBLIC_FIREBASE_*` variables already used.
+- [x] Delete stale `android/` prebuild (`versionCode 1`, `versionName 1.0.0`) and `dist/`. EAS regenerates native folders from `app.json`.
+- [x] `npx expo install --fix` → resolves the two patch-level mismatches.
+- [x] Remove unused deps: `expo-linear-gradient`, `react-native-svg`, `react-dom`, `react-native-web`, `@expo/ngrok`. (`expo-font` stays — `@expo/vector-icons` declares it as a peer dependency.)
+- [x] Remove the web target from `app.json` and the `web` script (decision D4).
+- [x] Delete dead code per PRD §11: `multiplayerService.ts`, fake Google path, `loginAsUser`, `MAX_ATTEMPTS`, `hint.penalty`, `settings.notifications` toggle, `googleBtn` styles.
+- [x] Replace `console.log/warn` with `lib/log.ts` (no-op in release).
+- [x] Add a `README.md` with run/build instructions and a `.env.example` that matches the six `EXPO_PUBLIC_FIREBASE_*` variables already used.
 - [ ] Tag `v1.0.0-baseline` and record the current APK if one exists.
 
 **Done when:** `tsc --noEmit`, `expo lint`, `expo-doctor` pass; `grep` for removed identifiers returns nothing; `npx expo start` runs on a device with zero console errors.
+
+_Verified 23 Oct 2026: typecheck, lint and `expo-doctor` (21/21) pass. Local Metro bundling fails on this machine with `EINVAL: readlink` on OneDrive placeholder files inside `node_modules` — an environment quirk, not app code; confirm the first bundle on an EAS build or a non-OneDrive checkout._
 
 ---
 
