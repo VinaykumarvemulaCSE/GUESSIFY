@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '../context/AppContext';
 import { ROUTES } from '../lib/routes';
+import { FirestoreService } from '../services/firestoreService';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
 
 export const MultiplayerMenuScreen: React.FC = () => {
@@ -21,6 +22,7 @@ export const MultiplayerMenuScreen: React.FC = () => {
   const [joinModalVisible, setJoinModalVisible] = useState(invite.length === 6);
   const [roomCodeInput, setRoomCodeInput] = useState(invite);
   const [error, setError] = useState('');
+  const tier = FirestoreService.calculateTier(profile.points);
 
   const handleCreate = async () => {
     await createMultiplayerRoom();
@@ -87,7 +89,7 @@ export const MultiplayerMenuScreen: React.FC = () => {
             </View>
             <View>
               <Text style={styles.statLabel}>RANK</Text>
-              <Text style={[styles.statVal, { color: COLORS.primary }]}>Gold II</Text>
+              <Text style={[styles.statVal, { color: COLORS.primary }]}>{tier}</Text>
             </View>
           </View>
           <View style={styles.statCard}>
@@ -95,7 +97,7 @@ export const MultiplayerMenuScreen: React.FC = () => {
               <Ionicons name="analytics-outline" size={20} color={COLORS.secondary} />
             </View>
             <View>
-              <Text style={styles.statLabel}>PVP RECORD</Text>
+              <Text style={styles.statLabel}>TOTAL RECORD</Text>
               <Text style={styles.statVal}>
                 {profile.stats.wins}W - {profile.stats.losses}L
               </Text>

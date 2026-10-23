@@ -35,6 +35,8 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
 
 export const MAX_HINTS = 2;
 export const HINT_PENALTY = 50;
+export const ATTEMPT_PENALTY = 25;
+export const MIN_SOLO_SCORE = 50;
 export const TURN_TIMEOUT_SECONDS = 30;
 export const ROOM_CODE_LENGTH = 6;
 export const ROOM_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
@@ -47,8 +49,8 @@ export function calculateSoloScore(
   hintsUsed: number
 ): number {
   const base = DIFFICULTY_CONFIGS[difficulty].baseScore;
-  const rawScore = base - 25 * (attempts - 1) - HINT_PENALTY * hintsUsed;
-  return Math.max(50, rawScore);
+  const rawScore = base - ATTEMPT_PENALTY * (attempts - 1) - HINT_PENALTY * hintsUsed;
+  return Math.max(MIN_SOLO_SCORE, rawScore);
 }
 
 /**
@@ -82,7 +84,6 @@ export function calculateGuessFeedback(
 export const MULTIPLAYER_POINTS = {
   WIN: 150,
   LOSS: 45,
-  DRAW: 75,
 };
 
 /** The player who holds the secret and scores guesses (PRD §6.3). */

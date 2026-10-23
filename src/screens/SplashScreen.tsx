@@ -5,6 +5,7 @@ import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { NeuralBulbLogo } from '../components/common/NeuralBulbLogo';
 import { StorageService } from '../services/storage';
+import { APP_VERSION } from '../lib/version';
 
 export const SplashScreen: React.FC = () => {
   
@@ -48,7 +49,7 @@ export const SplashScreen: React.FC = () => {
           <View style={styles.pulseDot} />
           <Text style={styles.netText}>ARCADE NET</Text>
         </View>
-        <Text style={styles.versionText}>v1.0</Text>
+        <Text style={styles.versionText}>v{APP_VERSION}</Text>
       </View>
 
       {/* Central Emblem & Brand Wordmark */}

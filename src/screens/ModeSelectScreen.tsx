@@ -136,7 +136,7 @@ export const ModeSelectScreen: React.FC = () => {
                 >
                   Race Mode (Both Guess)
                 </Text>
-                <Text style={styles.modeCardTag}>POPULAR • SPEED RACE</Text>
+                <Text style={styles.modeCardTag}>SPEED RACE</Text>
               </View>
             </View>
 

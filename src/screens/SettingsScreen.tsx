@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
 import { ROUTES } from '../lib/routes';
 import { PRIVACY_URL } from '../constants/links';
+import { APP_VERSION } from '../lib/version';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
 
@@ -312,7 +313,7 @@ export const SettingsScreen: React.FC = () => {
               </View>
               <View style={styles.settingMeta}>
                 <Text style={styles.settingTitle}>About Guessify</Text>
-                <Text style={styles.settingSub}>Version 1.0 • Nostalgic Guessing Game</Text>
+                <Text style={styles.settingSub}>Version {APP_VERSION} • Nostalgic Guessing Game</Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={18} color={COLORS.onSurfaceVariant} />

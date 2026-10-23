@@ -13,6 +13,7 @@ import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
 import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
+import { DIFFICULTY_CONFIGS } from '../constants/gameRules';
 import { Difficulty } from '../types';
 
 interface StageConfig {
@@ -23,10 +24,29 @@ interface StageConfig {
   range: string;
   guesses: number;
   points: number;
-  popular?: boolean;
   color: string;
   icon: keyof typeof Ionicons.glyphMap;
 }
+
+const stageFromConfig = (
+  id: Difficulty,
+  stageNumber: number,
+  color: string,
+  icon: keyof typeof Ionicons.glyphMap
+): StageConfig => {
+  const config = DIFFICULTY_CONFIGS[id];
+  return {
+    id,
+    stageNumber,
+    name: config.label.toUpperCase(),
+    stars: config.stars,
+    range: `${config.min} – ${config.max}`,
+    guesses: config.shields,
+    points: config.baseScore,
+    color,
+    icon,
+  };
+};
 
 export const DifficultySelectScreen: React.FC = () => {
   const { startSoloGame, profile, settings } = useApp();
@@ -44,40 +64,9 @@ export const DifficultySelectScreen: React.FC = () => {
   };
 
   const stages: StageConfig[] = [
-    {
-      id: 'easy',
-      stageNumber: 1,
-      name: 'EASY',
-      stars: 1,
-      range: '1 – 50',
-      guesses: 8,
-      points: 500,
-      color: '#10b981',
-      icon: 'sparkles',
-    },
-    {
-      id: 'medium',
-      stageNumber: 2,
-      name: 'MEDIUM',
-      stars: 2,
-      range: '1 – 100',
-      guesses: 10,
-      points: 800,
-      popular: true,
-      color: COLORS.primaryContainer,
-      icon: 'game-controller',
-    },
-    {
-      id: 'hard',
-      stageNumber: 3,
-      name: 'HARD',
-      stars: 3,
-      range: '1 – 1,000',
-      guesses: 15,
-      points: 1200,
-      color: COLORS.error,
-      icon: 'flame',
-    },
+    stageFromConfig('easy', 1, '#10b981', 'sparkles'),
+    stageFromConfig('medium', 2, COLORS.primaryContainer, 'game-controller'),
+    stageFromConfig('hard', 3, COLORS.error, 'flame'),
   ];
 
   const currentStage = stages.find((s) => s.id === selected) || stages[1];
@@ -133,13 +122,6 @@ export const DifficultySelectScreen: React.FC = () => {
                   isSelected && [styles.stageCardSelected, { borderColor: stg.color }],
                 ]}
               >
-                {/* Popular Ribbon */}
-                {stg.popular && (
-                  <View style={styles.popularBadge}>
-                    <Text style={styles.popularText}>POPULAR</Text>
-                  </View>
-                )}
-
                 <View style={styles.cardHeaderRow}>
                   {/* Stage Icon & Title */}
                   <View style={styles.cardLeft}>
@@ -296,21 +278,6 @@ const styles = StyleSheet.create({
   },
   stageCardSelected: {
     backgroundColor: COLORS.surfaceContainerHigh,
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: COLORS.primaryContainer,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderBottomLeftRadius: 10,
-  },
-  popularText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
   },
   cardHeaderRow: {
     flexDirection: 'row',

@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
 import { NeuralBulbLogo } from '../components/common/NeuralBulbLogo';
+import { APP_VERSION } from '../lib/version';
 
 export const AboutScreen: React.FC = () => {
   
@@ -25,7 +26,7 @@ export const AboutScreen: React.FC = () => {
           <Text style={styles.appName}>Guessify</Text>
           <Text style={styles.appTag}>Arcade-Intellectual Number Arena</Text>
           <View style={styles.versionBadge}>
-            <Text style={styles.versionText}>Version 1.0 (Production Build)</Text>
+            <Text style={styles.versionText}>Version {APP_VERSION}</Text>
           </View>
         </View>
 
@@ -37,9 +38,9 @@ export const AboutScreen: React.FC = () => {
         </GlowCard>
 
         <GlowCard variant="glowCyan" style={styles.infoCard}>
-          <Text style={[styles.infoTitle, { color: COLORS.secondary }]}>Fair Play & Anti-Cheat</Text>
+          <Text style={[styles.infoTitle, { color: COLORS.secondary }]}>Fair Play & Data Integrity</Text>
           <Text style={styles.infoText}>
-            In ranked multiplayer and server rounds, secret numbers and score validation are held server-side to guarantee integrity. No client can inspect or forge leaderboard scores.
+            Guessify runs on Firebase Spark, so there is no game server. Integrity comes from Firestore security rules, capped leaderboard writes and idempotent match IDs. In duels, the setter&apos;s device holds the secret in memory and scores each guess, so the answer never reaches the opponent while a round is live. Leaderboards are casual fair play: a modified client could still submit plausible scores.
           </Text>
         </GlowCard>
 

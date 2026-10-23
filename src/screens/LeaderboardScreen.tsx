@@ -108,7 +108,11 @@ export const LeaderboardScreen: React.FC = () => {
         <View style={styles.resetNotice}>
           <Ionicons name="time-outline" size={14} color={COLORS.onSurfaceVariant} />
           <Text style={styles.resetNoticeText}>
-            Weekly board resets Monday 00:00 UTC
+            {period === 'weekly'
+              ? 'Weekly board resets Monday 00:00 UTC'
+              : period === 'monthly'
+                ? 'Monthly board resets on the 1st, 00:00 UTC'
+                : 'All-time board never resets'}
           </Text>
         </View>
 

@@ -90,6 +90,13 @@ describe('leaderboard periods', () => {
     expect(monthKey(new Date('2026-03-02T12:00:00Z'))).toBe('2026-03');
   });
 
+  it('rolls over on UTC boundaries, not device-local midnight', () => {
+    expect(isoWeekKey(new Date('2026-10-25T23:59:59Z'))).toBe('2026-W43');
+    expect(isoWeekKey(new Date('2026-10-26T00:00:00Z'))).toBe('2026-W44');
+    expect(monthKey(new Date('2026-10-31T23:59:59Z'))).toBe('2026-10');
+    expect(monthKey(new Date('2026-11-01T00:00:00Z'))).toBe('2026-11');
+  });
+
   it('writes the same match to three boards', () => {
     const keys = periodKeys(new Date('2026-10-23T12:00:00Z'));
     expect(keys.map((k) => k.key)).toEqual(['2026-W43', '2026-10', 'allTime']);

@@ -4,6 +4,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
+import {
+  ATTEMPT_PENALTY,
+  DIFFICULTY_CONFIGS,
+  HINT_PENALTY,
+  MAX_HINTS,
+  MIN_SOLO_SCORE,
+  MULTIPLAYER_POINTS,
+  ROOM_EXPIRY_MS,
+  TURN_TIMEOUT_SECONDS,
+} from '../constants/gameRules';
+
+const DIFFICULTIES = Object.values(DIFFICULTY_CONFIGS);
+const SHIELD_SUMMARY = DIFFICULTIES.map((d) => `${d.label} ${d.shields}`).join(' • ');
+const ROOM_EXPIRY_MINUTES = Math.round(ROOM_EXPIRY_MS / 60000);
 
 export const GameRulesScreen: React.FC = () => {
   
@@ -33,13 +47,13 @@ export const GameRulesScreen: React.FC = () => {
             <Text style={styles.cardTitle}>Single-Player Rules</Text>
           </View>
           <Text style={styles.ruleBullet}>
-            • <Text style={styles.bold}>10 Attempts Maximum:</Text> You have exactly 10 guesses to find the secret number. The 10th incorrect guess results in Game Over.
+            • <Text style={styles.bold}>Guess Budget:</Text> {SHIELD_SUMMARY} guesses by stage. Spending the final guess without a correct answer ends the round with 0 points.
           </Text>
           <Text style={styles.ruleBullet}>
-            • <Text style={styles.bold}>Tactical Feedback:</Text> Every valid guess receives instant feedback: <Text style={{ color: COLORS.error }}>🔼 Too High</Text>, <Text style={{ color: COLORS.secondary }}>🔽 Too Low</Text>, or <Text style={{ color: COLORS.success }}>✅ Correct</Text>.
+            • <Text style={styles.bold}>Tactical Feedback:</Text> Every guess gets one of four directional clues — <Text style={{ color: COLORS.error }}>Too High</Text>, <Text style={{ color: COLORS.secondary }}>High (close)</Text>, <Text style={{ color: COLORS.secondary }}>Low (close)</Text>, <Text style={{ color: COLORS.error }}>Too Low</Text> — or <Text style={{ color: COLORS.success }}>Correct</Text>. “Close” means within 12% of the range.
           </Text>
           <Text style={styles.ruleBullet}>
-            • <Text style={styles.bold}>2 Smart Hints:</Text> Hint 1 narrows down the target range. Hint 2 reveals parity (Even/Odd) and digit sum. Each hint deducts 50 points.
+            • <Text style={styles.bold}>{MAX_HINTS} Smart Hints:</Text> Hint 1 narrows the target range. Hint 2 reveals parity (Even/Odd) and digit sum. Each hint costs {HINT_PENALTY} points.
           </Text>
         </GlowCard>
 
@@ -48,23 +62,19 @@ export const GameRulesScreen: React.FC = () => {
           <View style={styles.cardHeader}>
             <Ionicons name="calculator" size={20} color={COLORS.secondary} />
             <Text style={[styles.cardTitle, { color: COLORS.secondary }]}>
-              Scoring Formula (PRD v1.1)
+              Scoring Formula
             </Text>
           </View>
           <View style={styles.formulaBox}>
             <Text style={styles.formulaText}>
-              Score = max(50, Base − 25 × (Attempts − 1) − 50 × HintsUsed)
+              Score = max({MIN_SOLO_SCORE}, Base − {ATTEMPT_PENALTY} × (Attempts − 1) − {HINT_PENALTY} × HintsUsed)
             </Text>
           </View>
-          <Text style={styles.ruleBullet}>
-            • <Text style={styles.bold}>Easy (1–50):</Text> Base 500 PTS
-          </Text>
-          <Text style={styles.ruleBullet}>
-            • <Text style={styles.bold}>Medium (1–100):</Text> Base 800 PTS
-          </Text>
-          <Text style={styles.ruleBullet}>
-            • <Text style={styles.bold}>Hard (1–1000):</Text> Base 1000 PTS
-          </Text>
+          {DIFFICULTIES.map((d) => (
+            <Text key={d.id} style={styles.ruleBullet}>
+              • <Text style={styles.bold}>{d.label} ({d.min}–{d.max}):</Text> Base {d.baseScore} PTS
+            </Text>
+          ))}
           <Text style={styles.ruleBullet}>
             • <Text style={styles.bold}>Loss / Surrender:</Text> 0 PTS
           </Text>
@@ -79,13 +89,19 @@ export const GameRulesScreen: React.FC = () => {
             </Text>
           </View>
           <Text style={styles.ruleBullet}>
-            • <Text style={styles.bold}>Both Together:</Text> Alternating turns with a 30s turn timer. First correct guess claims the victory!
+            • <Text style={styles.bold}>Both Together:</Text> Alternating turns with a {TURN_TIMEOUT_SECONDS}s turn timer. The first correct guess wins the round.
           </Text>
           <Text style={styles.ruleBullet}>
-            • <Text style={styles.bold}>Setter Modes:</Text> Guesser wins by solving within 10 attempts; otherwise the setter wins.
+            • <Text style={styles.bold}>Setter Modes:</Text> One player sets the secret and scores each guess from memory; the guesser keeps the floor until they solve it. There is no attempt cap.
           </Text>
           <Text style={styles.ruleBullet}>
-            • <Text style={styles.bold}>Point Awards:</Text> Winner: +150 PTS • Loser: +45 PTS • Draw: +75 PTS.
+            • <Text style={styles.bold}>Point Awards:</Text> Winner +{MULTIPLAYER_POINTS.WIN} PTS • Other player +{MULTIPLAYER_POINTS.LOSS} PTS.
+          </Text>
+          <Text style={styles.ruleBullet}>
+            • <Text style={styles.bold}>Fair Play:</Text> The secret is never written to Firestore while a round is live, and only the setter can score guesses.
+          </Text>
+          <Text style={styles.ruleBullet}>
+            • <Text style={styles.bold}>Room Expiry:</Text> Rooms close after {ROOM_EXPIRY_MINUTES} minutes without activity.
           </Text>
         </GlowCard>
       </ScrollView>
