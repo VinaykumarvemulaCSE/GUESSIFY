@@ -24,7 +24,7 @@
 | **Version** | `1.1.0` (`versionCode 2`) — release candidate |
 | **Platform** | Android only (iOS and web are deferred) |
 | **Backend** | Firebase Auth + Firestore, **Spark plan** (no Cloud Functions) |
-| **Build** | EAS production AAB — [build history](https://expo.dev/accounts/vinnuuu07/projects/guessify/builds) |
+| **Build** | [1.1.0 production AAB](https://expo.dev/accounts/vinnuuu07/projects/guessify/builds/fe459095-507c-4ab1-879e-aecccd2e316e) — [build history](https://expo.dev/accounts/vinnuuu07/projects/guessify/builds) |
 | **Store** | Not published yet; Play Console closed testing is the next step |
 
 `1.1.0` is the first public-facing build: it fixes the remaining copy and data-accuracy issues found in the `1.0.0` release candidate. See [What changed in 1.1.0](#what-changed-in-110).
@@ -170,7 +170,7 @@ npx eas-cli login
 npx eas-cli build --platform android --profile production
 ```
 
-`app.json` is the version source (`expo.version`, `android.versionCode`); EAS is configured with `appVersionSource: "local"`. The production profile emits an `.aab`, which is what Play Console expects.
+`app.json` is the version source (`expo.version`, `android.versionCode`); EAS is configured with `appVersionSource: "local"`. The production profile emits an `.aab`, which is what Play Console expects. The current candidate is build [`fe459095`](https://expo.dev/accounts/vinnuuu07/projects/guessify/builds/fe459095-507c-4ab1-879e-aecccd2e316e) (`1.1.0`, `versionCode 2`, commit `86abc73`).
 
 ## What changed in 1.1.0
 
