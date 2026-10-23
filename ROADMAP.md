@@ -85,7 +85,7 @@ Prerequisite: decision **D2**.
 - [x] `leaderboards/*`: public read; owner write, monotonic and capped at the max single-match award.
 - [x] `rooms/*`: signed-in read so a code can be joined; participant-only writes with field guards (no rewriting `hostUid`; a guest can only claim the empty guest seat; only the referee writes guess results). The secret is rejected while `PLAYING`.
 - [x] Delete unused rules for `rooms/*/guesses` and global `history`.
-- [x] Rules unit tests with `@firebase/rules-unit-testing` against the emulator: unauthorised read fails, email is unreachable, owner read succeeds, oversized points write fails, third player join fails. **27 cases, green.**
+- [x] Rules unit tests with `@firebase/rules-unit-testing` against the emulator: unauthorised read fails, email is unreachable, owner read succeeds, oversized points write fails, third player join fails. **28 cases, green.**
 
 ### 2b. Integrity without a server (1 day)
 
@@ -120,7 +120,7 @@ Prerequisite: decision **D2**.
 - [ ] Virtualise leaderboard and history lists; page 50 rows (NFR-2). **Not needed for v1.0:** queries are capped at 50 rows, so a `ScrollView` is bounded.
 - [ ] Accessibility pass: `accessibilityRole`, `accessibilityLabel`, `allowFontScaling` on all interactive controls (B15, FR-36, NFR-2). **Baseline only:** primary buttons and icon-only controls are labelled; a full audit is v1.1.
 - [x] Settings toggles are honest: haptics, keypad vibration and sound are checked at every call site, via `expo-haptics` and `expo-audio`.
-- [x] Vitest setup + unit tests for scoring, warm/cold thresholds, hint penalty, shield exhaustion, period keys and duel points (**17 cases**), plus the **27-case** security-rules suite.
+- [x] Vitest setup + unit tests for scoring, warm/cold thresholds, hint penalty, shield exhaustion, period keys and duel points (**18 cases**), plus the **28-case** security-rules suite.
 - [x] GitHub Actions: `tsc --noEmit`, `expo lint`, engine tests and the emulator rules suite on every push (NFR-9).
 
 **Done when:** two devices racing guesses in the same room never lose an entry; airplane-mode solo round syncs on reconnect; unit tests cover both engines; CI green.
