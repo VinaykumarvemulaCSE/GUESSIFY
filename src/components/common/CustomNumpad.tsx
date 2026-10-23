@@ -8,7 +8,9 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+import { useApp } from '../../context/AppContext';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
+import { playSound } from '../../lib/sound';
 
 interface CustomNumpadProps {
   onNumberPress: (num: string) => void;
@@ -23,8 +25,10 @@ export const CustomNumpad: React.FC<CustomNumpadProps> = ({
   onSubmitPress,
   submitDisabled = false,
 }) => {
+  const { settings } = useApp();
+
   const triggerHaptic = (type: 'key' | 'submit') => {
-    if (Platform.OS !== 'web') {
+    if (settings.keypadVibration && Platform.OS !== 'web') {
       try {
         if (type === 'submit') {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -33,6 +37,7 @@ export const CustomNumpad: React.FC<CustomNumpadProps> = ({
         }
       } catch {}
     }
+    if (settings.soundEnabled) playSound('key');
   };
 
   const handleNum = (val: string) => {

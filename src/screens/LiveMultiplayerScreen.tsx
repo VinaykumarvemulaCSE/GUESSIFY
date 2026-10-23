@@ -2,15 +2,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useApp } from '../context/AppContext';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { CustomNumpad } from '../components/common/CustomNumpad';
+import { playSound } from '../lib/sound';
 import { GuessResult } from '../types';
 
 export const LiveMultiplayerScreen: React.FC = () => {
   const {
     activeRoom,
     profile,
+    settings,
     submitMultiplayerGuess,
     leaveRoom,
   } = useApp();
@@ -18,6 +21,34 @@ export const LiveMultiplayerScreen: React.FC = () => {
   const [currentInput, setCurrentInput] = useState('');
   const [outOfRangeError, setOutOfRangeError] = useState<string | null>(null);
   const feedScrollRef = useRef<ScrollView>(null);
+  const lastFeedbackRef = useRef<string | null>(null);
+
+  const myLastGuess = [...(activeRoom?.guesses ?? [])].reverse().find((g) => g.uid === profile.uid);
+
+  // One cue per evaluated guess, for the guesser.
+  useEffect(() => {
+    if (!myLastGuess) return;
+    const key = `${myLastGuess.timestamp}:${myLastGuess.result}`;
+    if (lastFeedbackRef.current === key) return;
+    lastFeedbackRef.current = key;
+
+    if (settings.soundEnabled) {
+      playSound(
+        myLastGuess.result === 'CORRECT'
+          ? 'success'
+          : myLastGuess.result === 'TOO_HIGH' || myLastGuess.result === 'TOO_LOW'
+            ? 'error'
+            : 'key'
+      );
+    }
+    if (settings.hapticsEnabled) {
+      Haptics.notificationAsync(
+        myLastGuess.result === 'CORRECT'
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Warning
+      ).catch(() => {});
+    }
+  }, [myLastGuess, settings.soundEnabled, settings.hapticsEnabled]);
 
   // Auto-scroll feed down whenever guesses arrive
   useEffect(() => {
@@ -34,7 +65,6 @@ export const LiveMultiplayerScreen: React.FC = () => {
     );
   }
 
-  const myLastGuess = [...activeRoom.guesses].reverse().find((g) => g.uid === profile.uid);
   const lastResult: GuessResult | null = myLastGuess?.result ?? null;
   const lastGuessedNum = myLastGuess?.guessNumber;
   const isAwaitingReferee = Boolean(

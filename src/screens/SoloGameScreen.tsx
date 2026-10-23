@@ -18,6 +18,7 @@ import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { HINT_PENALTY, MAX_HINTS } from '../constants/gameRules';
 import { GuessResult } from '../types';
+import { playSound } from '../lib/sound';
 
 export const SoloGameScreen: React.FC = () => {
   const {
@@ -26,6 +27,7 @@ export const SoloGameScreen: React.FC = () => {
     unlockHint,
     availableHints,
     surrenderSoloGame,
+    settings,
   } = useApp();
 
   const [currentInput, setCurrentInput] = useState<string>('');
@@ -87,7 +89,7 @@ export const SoloGameScreen: React.FC = () => {
   });
 
   const triggerHaptic = (style: 'light' | 'medium' | 'heavy' | 'error' | 'success') => {
-    if (Platform.OS !== 'web') {
+    if (settings.hapticsEnabled && Platform.OS !== 'web') {
       try {
         if (style === 'error') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         else if (style === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -95,6 +97,9 @@ export const SoloGameScreen: React.FC = () => {
         else if (style === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       } catch { }
+    }
+    if (settings.soundEnabled) {
+      playSound(style === 'error' ? 'error' : style === 'success' ? 'success' : 'key');
     }
   };
 

@@ -29,10 +29,11 @@ interface StageConfig {
 }
 
 export const DifficultySelectScreen: React.FC = () => {
-  const { startSoloGame, profile } = useApp();
+  const { startSoloGame, profile, settings } = useApp();
   const [selected, setSelected] = useState<Difficulty>('medium');
 
   const triggerHaptic = (style: 'light' | 'medium' | 'heavy') => {
+    if (!settings.hapticsEnabled) return;
     if (Platform.OS !== 'web') {
       try {
         if (style === 'heavy') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);

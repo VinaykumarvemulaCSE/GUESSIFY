@@ -20,12 +20,13 @@ import { GlowCard } from '../components/common/GlowCard';
 import { FirestoreService } from '../services/firestoreService';
 
 export const ProfileScreen: React.FC = () => {
-  const { profile, updateDisplayName, logout } = useApp();
+  const { profile, updateDisplayName, logout, settings } = useApp();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [newNameInput, setNewNameInput] = useState(profile.displayName);
   const [isSaving, setIsSaving] = useState(false);
 
   const triggerHaptic = (style: 'light' | 'medium' | 'heavy' | 'success') => {
+    if (!settings.hapticsEnabled) return;
     if (Platform.OS !== 'web') {
       try {
         if (style === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

@@ -15,19 +15,21 @@ import { useApp } from '../context/AppContext';
 import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
+import { playSound } from '../lib/sound';
 
 export const GameOverScreen: React.FC = () => {
-  const { soloGame, startSoloGame } = useApp();
+  const { soloGame, startSoloGame, settings } = useApp();
 
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (Platform.OS !== 'web') {
+    if (settings.hapticsEnabled && Platform.OS !== 'web') {
       try {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       } catch {}
     }
+    if (settings.soundEnabled) playSound('error');
 
     Animated.spring(scaleAnim, {
       toValue: 1,
@@ -42,7 +44,7 @@ export const GameOverScreen: React.FC = () => {
       delay: 150,
       useNativeDriver: true,
     }).start();
-  }, [scaleAnim, fadeAnim]);
+  }, [scaleAnim, fadeAnim, settings.hapticsEnabled, settings.soundEnabled]);
 
   if (!soloGame) {
     return (

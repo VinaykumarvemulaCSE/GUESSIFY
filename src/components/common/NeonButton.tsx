@@ -9,6 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { useApp } from '../../context/AppContext';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 
 interface NeonButtonProps {
@@ -34,9 +35,11 @@ export const NeonButton: React.FC<NeonButtonProps> = ({
   textStyle,
   icon,
 }) => {
+  const { settings } = useApp();
+
   const handlePress = () => {
     if (disabled || loading) return;
-    if (Platform.OS !== 'web') {
+    if (settings.hapticsEnabled && Platform.OS !== 'web') {
       try {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       } catch {}
