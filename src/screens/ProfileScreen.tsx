@@ -12,13 +12,15 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
+import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
 import { FirestoreService } from '../services/firestoreService';
 
 export const ProfileScreen: React.FC = () => {
-  const { profile, updateDisplayName, logout, navigateTo } = useApp();
+  const { profile, updateDisplayName, logout } = useApp();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [newNameInput, setNewNameInput] = useState(profile.displayName);
   const [isSaving, setIsSaving] = useState(false);
@@ -105,7 +107,7 @@ export const ProfileScreen: React.FC = () => {
         <TouchableOpacity
           onPress={() => {
             triggerHaptic('light');
-            navigateTo('DASHBOARD');
+            router.replace(ROUTES.dashboard);
           }}
           style={styles.backBtn}
         >
@@ -115,7 +117,7 @@ export const ProfileScreen: React.FC = () => {
         <TouchableOpacity
           onPress={() => {
             triggerHaptic('light');
-            navigateTo('SETTINGS');
+            router.push(ROUTES.settings);
           }}
           style={styles.backBtn}
         >
@@ -261,7 +263,7 @@ export const ProfileScreen: React.FC = () => {
 
         <TouchableOpacity
           style={styles.menuRow}
-          onPress={() => navigateTo('HISTORY')}
+          onPress={() => router.push(ROUTES.history)}
           activeOpacity={0.7}
         >
           <View style={styles.menuLeft}>
@@ -278,7 +280,7 @@ export const ProfileScreen: React.FC = () => {
 
         <TouchableOpacity
           style={styles.menuRow}
-          onPress={() => navigateTo('LEADERBOARD')}
+          onPress={() => router.push(ROUTES.leaderboard)}
           activeOpacity={0.7}
         >
           <View style={styles.menuLeft}>
@@ -295,7 +297,7 @@ export const ProfileScreen: React.FC = () => {
 
         <TouchableOpacity
           style={styles.menuRow}
-          onPress={() => navigateTo('SETTINGS')}
+          onPress={() => router.push(ROUTES.settings)}
           activeOpacity={0.7}
         >
           <View style={styles.menuLeft}>

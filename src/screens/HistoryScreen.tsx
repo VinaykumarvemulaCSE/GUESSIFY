@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
+import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
 
 export const HistoryScreen: React.FC = () => {
-  const { matchHistory, clearMatchHistory, profile, navigateTo } = useApp();
+  const { matchHistory, clearMatchHistory, profile } = useApp();
   const [filter, setFilter] = useState<'All' | 'Victory' | 'Defeat'>('All');
 
   const filteredMatches = matchHistory.filter((m) => {
@@ -30,7 +32,7 @@ export const HistoryScreen: React.FC = () => {
       {/* Top Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigateTo('DASHBOARD')}
+          onPress={() => router.replace(ROUTES.dashboard)}
           style={styles.backBtn}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >

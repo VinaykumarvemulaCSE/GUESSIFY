@@ -10,18 +10,20 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
+import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
 
 export const WaitingRoomScreen: React.FC = () => {
-  const { activeRoom, profile, navigateTo, leaveRoom, startMultiplayerGame } = useApp();
+  const { activeRoom, profile, leaveRoom, startMultiplayerGame } = useApp();
   const [copied, setCopied] = useState(false);
 
   if (!activeRoom) {
     return (
       <View style={styles.container}>
-        <TouchableOpacity onPress={() => navigateTo('DASHBOARD')}>
+        <TouchableOpacity onPress={() => router.replace(ROUTES.dashboard)}>
           <Text style={styles.backLink}>Return to Dashboard</Text>
         </TouchableOpacity>
       </View>

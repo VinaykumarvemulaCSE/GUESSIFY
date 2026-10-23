@@ -10,13 +10,14 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { NeonButton } from '../components/common/NeonButton';
 import { NeuralBulbLogo } from '../components/common/NeuralBulbLogo';
 
 export const SignUpScreen: React.FC = () => {
-  const { navigateTo, signUpUser } = useApp();
+  const { signUpUser } = useApp();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -143,7 +144,7 @@ export const SignUpScreen: React.FC = () => {
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => navigateTo('LOGIN')}>
+          <TouchableOpacity onPress={() => router.back()}>
             <Text style={styles.loginLink}>Sign In</Text>
           </TouchableOpacity>
         </View>

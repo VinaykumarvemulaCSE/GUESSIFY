@@ -7,12 +7,14 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
+import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
 
 export const DashboardScreen: React.FC = () => {
-  const { profile, navigateTo } = useApp();
+  const { profile } = useApp();
 
   return (
     <View style={styles.container}>
@@ -21,7 +23,7 @@ export const DashboardScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.userSection}
           activeOpacity={0.8}
-          onPress={() => navigateTo('PROFILE')}
+          onPress={() => router.push(ROUTES.profile)}
         >
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarText}>
@@ -39,7 +41,7 @@ export const DashboardScreen: React.FC = () => {
         {/* Points Pill */}
         <TouchableOpacity
           style={styles.pointsPill}
-          onPress={() => navigateTo('LEADERBOARD')}
+          onPress={() => router.push(ROUTES.leaderboard)}
           activeOpacity={0.8}
         >
           <Ionicons name="flash" size={15} color={COLORS.primaryContainer} />
@@ -91,7 +93,7 @@ export const DashboardScreen: React.FC = () => {
         {/* 1. Solo Game Card */}
         <TouchableOpacity
           activeOpacity={0.88}
-          onPress={() => navigateTo('DIFFICULTY_SELECT')}
+          onPress={() => router.push(ROUTES.difficulty)}
           style={styles.modeCardWrapper}
         >
           <GlowCard variant="glowAmber" style={styles.modeCard}>
@@ -123,7 +125,7 @@ export const DashboardScreen: React.FC = () => {
         {/* 2. 1v1 Multiplayer Duel Card */}
         <TouchableOpacity
           activeOpacity={0.88}
-          onPress={() => navigateTo('MULTIPLAYER_MENU')}
+          onPress={() => router.push(ROUTES.duel)}
           style={styles.modeCardWrapper}
         >
           <GlowCard variant="glowCyan" style={styles.modeCard}>

@@ -10,12 +10,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
+import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
 
 export const SoloResultScreen: React.FC = () => {
-  const { soloGame, startSoloGame, navigateTo, profile } = useApp();
+  const { soloGame, startSoloGame, profile } = useApp();
 
   // Rewarding celebration animations
   const bounceAnim = useRef(new Animated.Value(0.3)).current;
@@ -59,7 +61,7 @@ export const SoloResultScreen: React.FC = () => {
   if (!soloGame) {
     return (
       <View style={styles.container}>
-        <TouchableOpacity onPress={() => navigateTo('DASHBOARD')}>
+        <TouchableOpacity onPress={() => router.replace(ROUTES.dashboard)}>
           <Text style={styles.backLink}>Return to Dashboard</Text>
         </TouchableOpacity>
       </View>
@@ -75,7 +77,7 @@ export const SoloResultScreen: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigateTo('DASHBOARD')}
+          onPress={() => router.replace(ROUTES.dashboard)}
           style={styles.backBtn}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
@@ -171,7 +173,7 @@ export const SoloResultScreen: React.FC = () => {
 
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => navigateTo('DASHBOARD')}
+            onPress={() => router.replace(ROUTES.dashboard)}
             style={styles.dashboardBtn}
           >
             <Ionicons name="grid-outline" size={18} color={COLORS.onSurface} />

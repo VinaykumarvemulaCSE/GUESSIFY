@@ -1,18 +1,17 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../context/AppContext';
+import { router } from 'expo-router';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
 
 export const GameRulesScreen: React.FC = () => {
-  const { goBack } = useApp();
-
+  
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.topRow}>
-        <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={COLORS.onSurface} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>GAME RULES & SCORING</Text>

@@ -9,7 +9,9 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
+import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
 
@@ -20,7 +22,6 @@ export const SettingsScreen: React.FC = () => {
     updateSettings,
     clearMatchHistory,
     logout,
-    navigateTo,
   } = useApp();
 
   const handleClearHistory = () => {
@@ -67,7 +68,7 @@ export const SettingsScreen: React.FC = () => {
       {/* Top Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigateTo('DASHBOARD')}
+          onPress={() => router.replace(ROUTES.dashboard)}
           style={styles.backBtn}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
@@ -96,7 +97,7 @@ export const SettingsScreen: React.FC = () => {
             </View>
             <TouchableOpacity
               style={styles.profileLinkBtn}
-              onPress={() => navigateTo('PROFILE')}
+              onPress={() => router.push(ROUTES.profile)}
               activeOpacity={0.7}
             >
               <Text style={styles.profileLinkText}>View Profile</Text>
@@ -189,7 +190,7 @@ export const SettingsScreen: React.FC = () => {
         <View style={styles.settingsGroup}>
           <TouchableOpacity
             style={styles.navRow}
-            onPress={() => navigateTo('RULES')}
+            onPress={() => router.push(ROUTES.rules)}
             activeOpacity={0.7}
           >
             <View style={styles.settingLeft}>
@@ -206,7 +207,7 @@ export const SettingsScreen: React.FC = () => {
 
           <TouchableOpacity
             style={[styles.navRow, { borderBottomWidth: 0 }]}
-            onPress={() => navigateTo('ABOUT')}
+            onPress={() => router.push(ROUTES.about)}
             activeOpacity={0.7}
           >
             <View style={styles.settingLeft}>

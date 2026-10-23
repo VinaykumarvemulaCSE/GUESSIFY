@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { NeonButton } from '../components/common/NeonButton';
 
 export const ForgotPasswordScreen: React.FC = () => {
-  const { navigateTo, resetPasswordEmail } = useApp();
+  const { resetPasswordEmail } = useApp();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
@@ -32,7 +33,7 @@ export const ForgotPasswordScreen: React.FC = () => {
     <View style={styles.container}>
       {/* Top Header */}
       <View style={styles.topRow}>
-        <TouchableOpacity onPress={() => navigateTo('LOGIN')} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={COLORS.onSurface} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>RESET PASSWORD</Text>
@@ -92,7 +93,7 @@ export const ForgotPasswordScreen: React.FC = () => {
           </View>
         )}
 
-        <TouchableOpacity onPress={() => navigateTo('LOGIN')} style={{ marginTop: SPACING.xl }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ marginTop: SPACING.xl }}>
           <Text style={styles.backToLogin}>Return to Sign In</Text>
         </TouchableOpacity>
       </View>

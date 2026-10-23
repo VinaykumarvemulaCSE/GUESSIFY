@@ -10,13 +10,15 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
+import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { NeonButton } from '../components/common/NeonButton';
 import { NeuralBulbLogo } from '../components/common/NeuralBulbLogo';
 
 export const LoginScreen: React.FC = () => {
-  const { navigateTo, loginWithEmail, loginAsGuest } = useApp();
+  const { loginWithEmail, loginAsGuest } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -105,7 +107,7 @@ export const LoginScreen: React.FC = () => {
 
           <TouchableOpacity
             style={styles.forgotBtn}
-            onPress={() => navigateTo('FORGOT_PASSWORD')}
+            onPress={() => router.push(ROUTES.forgotPassword)}
           >
             <Text style={styles.forgotText}>Forgot Password?</Text>
           </TouchableOpacity>
@@ -132,7 +134,7 @@ export const LoginScreen: React.FC = () => {
         {/* Footer Link */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>Don&apos;t have an account? </Text>
-          <TouchableOpacity onPress={() => navigateTo('SIGNUP')}>
+          <TouchableOpacity onPress={() => router.push(ROUTES.signup)}>
             <Text style={styles.signUpLink}>Create Account</Text>
           </TouchableOpacity>
         </View>

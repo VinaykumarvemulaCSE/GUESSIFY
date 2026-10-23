@@ -9,7 +9,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
+import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { Difficulty } from '../types';
 
@@ -27,7 +29,7 @@ interface StageConfig {
 }
 
 export const DifficultySelectScreen: React.FC = () => {
-  const { navigateTo, startSoloGame, profile } = useApp();
+  const { startSoloGame, profile } = useApp();
   const [selected, setSelected] = useState<Difficulty>('medium');
 
   const triggerHaptic = (style: 'light' | 'medium' | 'heavy') => {
@@ -96,7 +98,7 @@ export const DifficultySelectScreen: React.FC = () => {
         <TouchableOpacity
           onPress={() => {
             triggerHaptic('light');
-            navigateTo('DASHBOARD');
+            router.replace(ROUTES.dashboard);
           }}
           style={styles.backBtn}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}

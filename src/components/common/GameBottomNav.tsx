@@ -2,50 +2,53 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { router, usePathname } from 'expo-router';
 import { useApp } from '../../context/AppContext';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
+import { ROUTES } from '../../lib/routes';
 
 export const GameBottomNav: React.FC = () => {
-  const { currentScreen, navigateTo, settings } = useApp();
+  const { settings } = useApp();
+  const pathname = usePathname();
 
-  const handleTabPress = (screen: any) => {
+  const handleTabPress = (href: string) => {
     if (settings.hapticsEnabled) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    navigateTo(screen);
+    if (pathname !== href) router.replace(href);
   };
 
   const tabs = [
     {
-      id: 'DASHBOARD',
+      id: ROUTES.dashboard,
       label: 'Play',
       iconActive: 'game-controller' as const,
       iconInactive: 'game-controller-outline' as const,
       color: COLORS.primaryContainer,
     },
     {
-      id: 'LEADERBOARD',
+      id: ROUTES.leaderboard,
       label: 'Ranks',
       iconActive: 'trophy' as const,
       iconInactive: 'trophy-outline' as const,
       color: COLORS.secondary,
     },
     {
-      id: 'HISTORY',
+      id: ROUTES.history,
       label: 'History',
       iconActive: 'time' as const,
       iconInactive: 'time-outline' as const,
       color: COLORS.tertiary,
     },
     {
-      id: 'PROFILE',
+      id: ROUTES.profile,
       label: 'Profile',
       iconActive: 'person' as const,
       iconInactive: 'person-outline' as const,
       color: COLORS.primaryFixed,
     },
     {
-      id: 'SETTINGS',
+      id: ROUTES.settings,
       label: 'Settings',
       iconActive: 'settings' as const,
       iconInactive: 'settings-outline' as const,
@@ -57,7 +60,7 @@ export const GameBottomNav: React.FC = () => {
     <View style={styles.navContainer}>
       <View style={styles.navBar}>
         {tabs.map((tab) => {
-          const isActive = currentScreen === tab.id;
+          const isActive = pathname === tab.id;
           return (
             <TouchableOpacity
               key={tab.id}

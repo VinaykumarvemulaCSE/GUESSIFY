@@ -9,13 +9,17 @@ import {
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useApp } from '../context/AppContext';
+import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
 
 export const MultiplayerMenuScreen: React.FC = () => {
-  const { navigateTo, createMultiplayerRoom, joinMultiplayerRoom, profile } = useApp();
-  const [joinModalVisible, setJoinModalVisible] = useState(false);
-  const [roomCodeInput, setRoomCodeInput] = useState('');
+  const { createMultiplayerRoom, joinMultiplayerRoom, profile } = useApp();
+  const { code: inviteCode } = useLocalSearchParams<{ code?: string }>();
+  const invite = typeof inviteCode === 'string' ? inviteCode.toUpperCase().slice(0, 6) : '';
+  const [joinModalVisible, setJoinModalVisible] = useState(invite.length === 6);
+  const [roomCodeInput, setRoomCodeInput] = useState(invite);
   const [error, setError] = useState('');
 
   const handleCreate = async () => {
@@ -44,7 +48,7 @@ export const MultiplayerMenuScreen: React.FC = () => {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
-            onPress={() => navigateTo('DASHBOARD')}
+            onPress={() => router.replace(ROUTES.dashboard)}
             style={styles.iconBtn}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
@@ -56,7 +60,7 @@ export const MultiplayerMenuScreen: React.FC = () => {
           </View>
         </View>
         <TouchableOpacity
-          onPress={() => navigateTo('RULES')}
+          onPress={() => router.push(ROUTES.rules)}
           style={styles.iconBtn}
         >
           <Ionicons name="help-circle-outline" size={22} color={COLORS.onSurface} />

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { router } from 'expo-router';
 import {
   UserProfile,
   AppSettings,
@@ -23,37 +24,9 @@ import { FirestoreMultiplayer } from '../services/firestoreMultiplayer';
 import { FirestoreService } from '../services/firestoreService';
 import { isFirebaseConfigured } from '../services/firebaseConfig';
 import { log } from '../lib/log';
-
-export type ScreenName =
-  | 'SPLASH'
-  | 'ONBOARDING'
-  | 'LOGIN'
-  | 'SIGNUP'
-  | 'FORGOT_PASSWORD'
-  | 'DASHBOARD'
-  | 'DIFFICULTY_SELECT'
-  | 'SOLO_GAME'
-  | 'SOLO_RESULT'
-  | 'GAME_OVER'
-  | 'MULTIPLAYER_MENU'
-  | 'WAITING_ROOM'
-  | 'MODE_SELECTION'
-  | 'LIVE_MULTIPLAYER'
-  | 'MULTIPLAYER_RESULT'
-  | 'LEADERBOARD'
-  | 'HISTORY'
-  | 'SETTINGS'
-  | 'PROFILE'
-  | 'RULES'
-  | 'ABOUT';
+import { ROUTES } from '../lib/routes';
 
 interface AppContextType {
-  // Navigation
-  currentScreen: ScreenName;
-  screenParams: any;
-  navigateTo: (screen: ScreenName, params?: any) => void;
-  goBack: () => void;
-
   // Profile & Auth
   profile: UserProfile;
   isFirebaseActive: boolean;
@@ -96,10 +69,6 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | null>(null);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentScreen, setCurrentScreen] = useState<ScreenName>('SPLASH');
-  const [screenParams, setScreenParams] = useState<any>({});
-  const [screenStack, setScreenStack] = useState<ScreenName[]>(['SPLASH']);
-
   const [profile, setProfile] = useState<UserProfile>({
     uid: '',
     displayName: 'Player',
@@ -207,30 +176,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  const navigateTo = (screen: ScreenName, params?: any) => {
-    setScreenStack((prev) => [...prev, screen]);
-    setScreenParams(params || {});
-    setCurrentScreen(screen);
-  };
-
-  const goBack = () => {
-    if (screenStack.length > 1) {
-      const nextStack = [...screenStack];
-      nextStack.pop();
-      const prevScreen = nextStack[nextStack.length - 1];
-      setScreenStack(nextStack);
-      setCurrentScreen(prevScreen);
-    } else {
-      setCurrentScreen('DASHBOARD');
-    }
-  };
-
   // Auth Operations
   const loginWithEmail = async (email: string, pass: string) => {
     try {
       const loggedProfile = await AuthService.login(email, pass);
       setProfile(loggedProfile);
-      navigateTo('DASHBOARD');
+      router.replace(ROUTES.dashboard);
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e?.message || 'Login failed' };
@@ -241,7 +192,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const newProfile = await AuthService.signUp(name, email, pass);
       setProfile(newProfile);
-      navigateTo('DASHBOARD');
+      router.replace(ROUTES.dashboard);
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e?.message || 'Signup failed' };
@@ -252,7 +203,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const guestProfile = await AuthService.loginAsGuest();
       setProfile(guestProfile);
-      navigateTo('DASHBOARD');
+      router.replace(ROUTES.dashboard);
     } catch {
       const updated: UserProfile = {
         ...profile,
@@ -262,7 +213,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setProfile(updated);
       await StorageService.saveProfile(updated);
-      navigateTo('DASHBOARD');
+      router.replace(ROUTES.dashboard);
     }
   };
 
@@ -307,7 +258,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       hideFromLeaderboard: false,
     });
     setMatchHistory([]);
-    navigateTo('LOGIN');
+    router.replace(ROUTES.login);
   };
 
   const updateSettings = async (newSettings: Partial<AppSettings>) => {
@@ -338,7 +289,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setSoloGame(session);
     setAvailableHints(hints);
-    navigateTo('SOLO_GAME');
+    router.push(ROUTES.solo);
   };
 
   const submitSoloGuess = (guessNum: number): GuessResult | null => {
@@ -431,11 +382,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       setTimeout(() => {
-        if (isWon) {
-          navigateTo('SOLO_RESULT');
-        } else {
-          navigateTo('GAME_OVER');
-        }
+        router.replace(isWon ? ROUTES.soloResult : ROUTES.gameOver);
       }, 700);
     }
 
@@ -499,7 +446,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       score: 0,
       endTime: Date.now(),
     });
-    navigateTo('GAME_OVER');
+    router.replace(ROUTES.gameOver);
   };
 
   // Real-Time Multiplayer Room Handlers
@@ -513,13 +460,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     roomUnsubscribeRef.current = FirestoreMultiplayer.subscribeToRoom(roomId, (updated) => {
       setActiveRoom(updated);
 
-      if (updated.status === 'PLAYING') {
-        setCurrentScreen((prev) => (prev !== 'LIVE_MULTIPLAYER' ? 'LIVE_MULTIPLAYER' : prev));
-      } else if (updated.status === 'MODE_SELECTION' || updated.status === 'CONFIRMING') {
-        setCurrentScreen((prev) => (prev === 'WAITING_ROOM' ? 'MODE_SELECTION' : prev));
-      } else if (updated.status === 'RESULT') {
-        setCurrentScreen((prev) => (prev !== 'MULTIPLAYER_RESULT' ? 'MULTIPLAYER_RESULT' : prev));
-
+      if (updated.status === 'RESULT') {
         const resultKey = `${updated.roomId}_${updated.guesses.length}_${updated.winnerUid}`;
         if (lastProcessedRoomResultRef.current !== resultKey && updated.winnerUid) {
           lastProcessedRoomResultRef.current = resultKey;
@@ -579,7 +520,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const room = await FirestoreMultiplayer.createRoom(profile.uid, profile.displayName);
     setActiveRoom(room);
     subscribeAndHandleRoom(room.roomId);
-    navigateTo('WAITING_ROOM');
+    router.push(ROUTES.duelRoom);
     return room;
   };
 
@@ -588,7 +529,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (res.success && res.room) {
       setActiveRoom(res.room);
       subscribeAndHandleRoom(res.room.roomId);
-      navigateTo('WAITING_ROOM');
+      router.push(ROUTES.duelRoom);
       return { success: true };
     }
     return { success: false, error: res.error };
@@ -602,7 +543,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const startMultiplayerGame = async (secret?: number) => {
     if (!activeRoom) return;
     await FirestoreMultiplayer.startRound(activeRoom.roomId, secret);
-    navigateTo('LIVE_MULTIPLAYER');
   };
 
   const submitMultiplayerGuess = async (guessNum: number) => {
@@ -630,7 +570,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       roomUnsubscribeRef.current = null;
     }
     setActiveRoom(null);
-    navigateTo('DASHBOARD');
+    router.replace(ROUTES.dashboard);
   };
 
   const clearMatchHistory = async () => {
@@ -641,10 +581,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
-        currentScreen,
-        screenParams,
-        navigateTo,
-        goBack,
         profile,
         isFirebaseActive: isFirebaseConfigured,
         loginWithEmail,

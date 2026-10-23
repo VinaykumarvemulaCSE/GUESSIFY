@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
+import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
 
 export const LeaderboardScreen: React.FC = () => {
-  const { leaderboardUsers, navigateTo, refreshLeaderboard, profile } = useApp();
+  const { leaderboardUsers, refreshLeaderboard, profile } = useApp();
   const [period, setPeriod] = useState<'weekly' | 'monthly' | 'allTime'>('weekly');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -40,7 +42,7 @@ export const LeaderboardScreen: React.FC = () => {
     <View style={styles.container}>
       {/* Top Header */}
       <View style={styles.topRow}>
-        <TouchableOpacity onPress={() => navigateTo('DASHBOARD')} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.replace(ROUTES.dashboard)} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={COLORS.onSurface} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>HALL OF CIPHERS</Text>

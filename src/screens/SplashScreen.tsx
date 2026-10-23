@@ -1,33 +1,33 @@
 import React, { useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useApp } from '../context/AppContext';
+import { router } from 'expo-router';
+import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { NeuralBulbLogo } from '../components/common/NeuralBulbLogo';
 import { StorageService } from '../services/storage';
 
 export const SplashScreen: React.FC = () => {
-  const { navigateTo } = useApp();
-
+  
   const proceedToApp = useCallback(async () => {
     try {
       const seenOnboarding = await StorageService.hasSeenOnboarding();
       if (!seenOnboarding) {
-        navigateTo('ONBOARDING');
+        router.replace(ROUTES.onboarding);
         return;
       }
 
       // Restore session on the basis of last session credentials
       const savedProfile = await StorageService.getSavedProfile();
       if (savedProfile && !savedProfile.isGuest) {
-        navigateTo('DASHBOARD');
+        router.replace(ROUTES.dashboard);
       } else {
         // Ask user to sign in or get started
-        navigateTo('LOGIN');
+        router.replace(ROUTES.login);
       }
     } catch {
-      navigateTo('LOGIN');
+      router.replace(ROUTES.login);
     }
-  }, [navigateTo]);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {

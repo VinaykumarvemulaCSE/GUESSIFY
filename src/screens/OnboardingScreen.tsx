@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../context/AppContext';
+import { router } from 'expo-router';
+import { ROUTES } from '../lib/routes';
 import { COLORS, SPACING } from '../constants/theme';
 import { NeonButton } from '../components/common/NeonButton';
 import { NeuralBulbLogo } from '../components/common/NeuralBulbLogo';
@@ -39,21 +40,20 @@ const SLIDES = [
 ];
 
 export const OnboardingScreen: React.FC = () => {
-  const { navigateTo } = useApp();
-  const [currentIndex, setCurrentIndex] = useState(0);
+    const [currentIndex, setCurrentIndex] = useState(0);
 
   const handleNext = async () => {
     if (currentIndex < SLIDES.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
       await StorageService.setSeenOnboarding();
-      navigateTo('LOGIN');
+      router.replace(ROUTES.login);
     }
   };
 
   const handleSkip = async () => {
     await StorageService.setSeenOnboarding();
-    navigateTo('LOGIN');
+    router.replace(ROUTES.login);
   };
 
   const slide = SLIDES[currentIndex];

@@ -12,7 +12,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
+import { ROUTES } from '../lib/routes';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { HINT_PENALTY, MAX_HINTS } from '../constants/gameRules';
 import { GuessResult } from '../types';
@@ -24,7 +26,6 @@ export const SoloGameScreen: React.FC = () => {
     unlockHint,
     availableHints,
     surrenderSoloGame,
-    navigateTo,
   } = useApp();
 
   const [currentInput, setCurrentInput] = useState<string>('');
@@ -65,7 +66,7 @@ export const SoloGameScreen: React.FC = () => {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>No active game session found.</Text>
-        <TouchableOpacity onPress={() => navigateTo('DASHBOARD')}>
+        <TouchableOpacity onPress={() => router.replace(ROUTES.dashboard)}>
           <Text style={styles.backLink}>Return to Dashboard</Text>
         </TouchableOpacity>
       </View>
@@ -196,7 +197,7 @@ export const SoloGameScreen: React.FC = () => {
         {
           text: 'Leave Game',
           style: 'destructive',
-          onPress: () => navigateTo('DASHBOARD'),
+          onPress: () => router.replace(ROUTES.dashboard),
         },
       ]
     );
