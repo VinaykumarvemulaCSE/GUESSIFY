@@ -25,7 +25,7 @@ export const AboutScreen: React.FC = () => {
           <Text style={styles.appName}>Guessify</Text>
           <Text style={styles.appTag}>Arcade-Intellectual Number Arena</Text>
           <View style={styles.versionBadge}>
-            <Text style={styles.versionText}>Version 1.1 (Production Build)</Text>
+            <Text style={styles.versionText}>Version 1.0 (Production Build)</Text>
           </View>
         </View>
 

@@ -312,7 +312,7 @@ export const SettingsScreen: React.FC = () => {
               </View>
               <View style={styles.settingMeta}>
                 <Text style={styles.settingTitle}>About Guessify</Text>
-                <Text style={styles.settingSub}>Version 1.1 • Nostalgic Guessing Game</Text>
+                <Text style={styles.settingSub}>Version 1.0 • Nostalgic Guessing Game</Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={18} color={COLORS.onSurfaceVariant} />

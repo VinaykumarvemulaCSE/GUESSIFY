@@ -48,7 +48,7 @@ export const SplashScreen: React.FC = () => {
           <View style={styles.pulseDot} />
           <Text style={styles.netText}>ARCADE NET</Text>
         </View>
-        <Text style={styles.versionText}>v1.1</Text>
+        <Text style={styles.versionText}>v1.0</Text>
       </View>
 
       {/* Central Emblem & Brand Wordmark */}
