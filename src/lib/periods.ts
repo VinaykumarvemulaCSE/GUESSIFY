@@ -22,6 +22,18 @@ export function periodKeys(date: Date = new Date()): { period: LeaderboardPeriod
   ];
 }
 
+/** Current plus historical keys that may hold an entry for this player. */
+export function cleanupPeriodKeys(date: Date = new Date(), weeks = 26, months = 12): string[] {
+  const keys = new Set<string>(['allTime']);
+  for (let i = 0; i < weeks; i++) {
+    keys.add(isoWeekKey(new Date(date.getTime() - i * 7 * 86400000)));
+  }
+  for (let i = 0; i < months; i++) {
+    keys.add(monthKey(new Date(date.getFullYear(), date.getMonth() - i, 1)));
+  }
+  return [...keys];
+}
+
 export function periodKey(period: LeaderboardPeriod, date: Date = new Date()): string {
   if (period === 'weekly') return isoWeekKey(date);
   if (period === 'monthly') return monthKey(date);

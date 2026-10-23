@@ -110,7 +110,12 @@ service cloud.firestore {
         && between(incoming().targetNumber, 0, 1000)
         && incoming().createdAt is int;
       allow delete: if signedIn() && existing().uid == request.auth.uid;
-      allow update: if false;
+      // Retried awards may re-send the same immutable match. Only the write
+      // timestamp can differ, so the payload cannot be edited after the fact.
+      allow update: if signedIn()
+        && existing().uid == request.auth.uid
+        && incoming().diff(existing()).affectedKeys().hasOnly(['createdAt'])
+        && incoming().createdAt is int;
     }
 
     // Period boards. Public read; the owner may add at most one match award

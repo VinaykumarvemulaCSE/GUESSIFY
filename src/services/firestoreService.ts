@@ -1,7 +1,7 @@
 import {
   collection,
-  deleteDoc,
   doc,
+  getDoc,
   getDocs,
   limit,
   orderBy,
@@ -10,10 +10,11 @@ import {
   setDoc,
   where,
   writeBatch,
+  type Query,
 } from 'firebase/firestore';
 import { db, auth, isFirebaseConfigured } from '../lib/firebase';
 import { log } from '../lib/log';
-import { LeaderboardPeriod, periodKey, periodKeys } from '../lib/periods';
+import { cleanupPeriodKeys, LeaderboardPeriod, periodKey, periodKeys } from '../lib/periods';
 import { LeaderboardUser, MatchHistoryItem, UserProfile } from '../types';
 
 /** Mirrors the cap enforced in firestore.rules. */
@@ -96,6 +97,16 @@ export const FirestoreService = {
     if (!uid) throw new Error('No signed-in user to record the match for.');
 
     const now = Date.now();
+    const userRef = doc(database, 'users', uid);
+    const cloudSnap = await getDoc(userRef);
+    const cloud = cloudSnap.exists() ? (cloudSnap.data() as UserProfile) : null;
+
+    // A retry (offline outbox) must not replace a profile that newer matches
+    // have already advanced past this snapshot.
+    const alreadyApplied = cloud
+      ? profile.stats.gamesPlayed <= (cloud.stats?.gamesPlayed ?? 0)
+      : false;
+
     const batch = writeBatch(database);
 
     batch.set(doc(database, 'matches', clientMatchId), {
@@ -112,37 +123,48 @@ export const FirestoreService = {
       createdAt: now,
     });
 
-    batch.set(doc(database, 'users', uid), {
-      uid,
-      displayName: profile.displayName,
-      email: profile.email,
-      isGuest: profile.isGuest,
-      points: profile.points,
-      stats: profile.stats,
-      hideFromLeaderboard: profile.hideFromLeaderboard,
-      updatedAt: now,
-    });
-
     batch.set(doc(database, 'users', uid, 'history', clientMatchId), {
       ...match,
       id: clientMatchId,
       recordedAt: now,
     });
 
-    batch.set(doc(database, 'publicProfiles', uid), {
-      uid,
-      displayName: profile.displayName,
-      points: profile.points,
-      wins: profile.stats.wins,
-      tier: tierOf(profile.points),
-      hideFromLeaderboard: profile.hideFromLeaderboard,
-      updatedAt: now,
-    });
+    if (!alreadyApplied) {
+      batch.set(userRef, {
+        uid,
+        displayName: profile.displayName,
+        email: profile.email,
+        isGuest: profile.isGuest,
+        points: profile.points,
+        stats: profile.stats,
+        hideFromLeaderboard: profile.hideFromLeaderboard,
+        updatedAt: now,
+      });
+
+      batch.set(doc(database, 'publicProfiles', uid), {
+        uid,
+        displayName: profile.displayName,
+        points: profile.points,
+        wins: profile.stats.wins,
+        tier: tierOf(profile.points),
+        hideFromLeaderboard: profile.hideFromLeaderboard,
+        updatedAt: now,
+      });
+    }
 
     await batch.commit();
 
+    // Period awards are idempotent on clientMatchId; a retry only fills gaps.
+    const boardProfile = cloud
+      ? {
+          ...profile,
+          displayName: cloud.displayName || profile.displayName,
+          hideFromLeaderboard: Boolean(cloud.hideFromLeaderboard),
+        }
+      : profile;
+
     for (const { period, key } of periodKeys()) {
-      await this.applyPeriodAward(profile, match, clientMatchId, period, key);
+      await this.applyPeriodAward(boardProfile, match, clientMatchId, period, key);
     }
   },
 
@@ -236,30 +258,33 @@ export const FirestoreService = {
   async deleteAccountData(uid: string): Promise<void> {
     const database = requireDb();
 
-    const [historySnap, matchesSnap] = await Promise.all([
-      getDocs(query(collection(database, 'users', uid, 'history'), limit(450))),
-      getDocs(query(collection(database, 'matches'), where('uid', '==', uid), limit(450))),
-    ]);
+    // Firestore returns at most `limit` documents; drain in pages until empty.
+    const drain = async (makeQuery: () => Query) => {
+      for (let pass = 0; pass < 50; pass++) {
+        const snap = await getDocs(makeQuery());
+        if (snap.empty) return;
+        const batch = writeBatch(database);
+        snap.docs.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+        if (snap.size < 400) return;
+      }
+    };
+
+    await drain(() => query(collection(database, 'users', uid, 'history'), limit(400)));
+    await drain(() =>
+      query(collection(database, 'matches'), where('uid', '==', uid), limit(400))
+    );
 
     const refs = [
-      ...historySnap.docs.map((d) => d.ref),
-      ...matchesSnap.docs.map((d) => d.ref),
       doc(database, 'users', uid),
       doc(database, 'publicProfiles', uid),
-      ...periodKeys().map(({ key }) => doc(database, 'leaderboards', key, 'entries', uid)),
+      ...cleanupPeriodKeys().map((key) => doc(database, 'leaderboards', key, 'entries', uid)),
     ];
 
-    // Firestore allows 500 operations per batch.
-    for (let i = 0; i < refs.length; i += 450) {
+    for (let i = 0; i < refs.length; i += 400) {
       const batch = writeBatch(database);
-      for (const ref of refs.slice(i, i + 450)) batch.delete(ref);
+      for (const ref of refs.slice(i, i + 400)) batch.delete(ref);
       await batch.commit();
-    }
-
-    // A user with a very long history may need a second pass.
-    if (historySnap.size === 450) {
-      const more = await getDocs(query(collection(database, 'users', uid, 'history'), limit(450)));
-      await Promise.all(more.docs.map((d) => deleteDoc(d.ref)));
     }
   },
 

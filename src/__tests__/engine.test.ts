@@ -6,7 +6,7 @@ import {
   firstGuesserFor,
   refereeFor,
 } from '../constants/gameRules';
-import { isoWeekKey, monthKey, periodKeys } from '../lib/periods';
+import { cleanupPeriodKeys, isoWeekKey, monthKey, periodKeys } from '../lib/periods';
 import { duelMatchId, soloMatchId } from '../lib/ids';
 
 describe('solo scoring', () => {
@@ -93,6 +93,16 @@ describe('leaderboard periods', () => {
   it('writes the same match to three boards', () => {
     const keys = periodKeys(new Date('2026-10-23T12:00:00Z'));
     expect(keys.map((k) => k.key)).toEqual(['2026-W43', '2026-10', 'allTime']);
+  });
+
+  it('covers current and recent boards when an account is deleted', () => {
+    const keys = cleanupPeriodKeys(new Date('2026-10-23T12:00:00Z'), 4, 2);
+    expect(keys).toContain('2026-W43');
+    expect(keys).toContain('2026-W42');
+    expect(keys).toContain('2026-10');
+    expect(keys).toContain('2026-09');
+    expect(keys).toContain('allTime');
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
 

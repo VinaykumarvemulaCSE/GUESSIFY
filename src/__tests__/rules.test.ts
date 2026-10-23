@@ -269,6 +269,14 @@ describe('matches', () => {
     await assertSucceeds(setDoc(doc(alice, 'matches', 'solo_alice_1'), match()));
     await assertFails(getDoc(doc(bob, 'matches', 'solo_alice_1')));
   });
+
+  it('allows an idempotent retry but no payload edits', async () => {
+    const alice = env.authenticatedContext('alice').firestore();
+    const ref = doc(alice, 'matches', 'solo_alice_1');
+    await assertSucceeds(setDoc(ref, match()));
+    await assertSucceeds(setDoc(ref, match({ createdAt: 2 })));
+    await assertFails(setDoc(ref, match({ createdAt: 2, score: 900 })));
+  });
 });
 
 describe('rooms', () => {
