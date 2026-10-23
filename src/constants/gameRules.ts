@@ -85,6 +85,26 @@ export const MULTIPLAYER_POINTS = {
   DRAW: 75,
 };
 
+/** The player who holds the secret and scores guesses (PRD §6.3). */
+export function refereeFor(
+  mode: 'BOTH_TOGETHER' | 'HOST_GUESSES' | 'FRIEND_GUESSES',
+  hostUid: string,
+  guestUid?: string
+): string {
+  if (mode === 'HOST_GUESSES') return guestUid || hostUid;
+  return hostUid;
+}
+
+/** The player who guesses first in a round. */
+export function firstGuesserFor(
+  mode: 'BOTH_TOGETHER' | 'HOST_GUESSES' | 'FRIEND_GUESSES',
+  hostUid: string,
+  guestUid?: string
+): string {
+  if (mode === 'FRIEND_GUESSES') return guestUid || hostUid;
+  return hostUid;
+}
+
 // Generate random room code (6 alphanumeric characters)
 export function generateRoomCode(): string {
   const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // exclude ambiguous 0, 1, I, O

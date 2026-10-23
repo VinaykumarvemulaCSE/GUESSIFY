@@ -1,168 +1,267 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDocs,
-  setDoc,
-  query,
-  orderBy,
   limit,
+  orderBy,
+  query,
+  runTransaction,
+  setDoc,
+  where,
+  writeBatch,
 } from 'firebase/firestore';
-import { db, auth, isFirebaseConfigured } from './firebaseConfig';
+import { db, auth, isFirebaseConfigured } from '../lib/firebase';
 import { log } from '../lib/log';
+import { LeaderboardPeriod, periodKey, periodKeys } from '../lib/periods';
 import { LeaderboardUser, MatchHistoryItem, UserProfile } from '../types';
-import { AuthService } from './authService';
+
+/** Mirrors the cap enforced in firestore.rules. */
+export const MAX_SINGLE_AWARD = 1200;
+
+function requireDb() {
+  if (!isFirebaseConfigured || !db) {
+    throw new Error('Firebase is not configured. Add your credentials to .env and restart.');
+  }
+  return db;
+}
+
+function targetUid(profile: UserProfile): string {
+  return auth?.currentUser?.uid || profile.uid;
+}
+
+function tierOf(points: number): LeaderboardUser['tier'] {
+  if (points >= 3000) return 'Grandmaster';
+  if (points >= 2000) return 'Master';
+  if (points >= 1200) return 'Diamond';
+  if (points >= 600) return 'Gold';
+  if (points >= 200) return 'Silver';
+  return 'Bronze';
+}
 
 export const FirestoreService = {
   /**
-   * Fetch Real Leaderboard from Firestore
+   * Read one board. Periods are real documents keyed by ISO week / month, so
+   * "weekly" only contains matches played this week (FR-23).
    */
-  async getLeaderboard(period: 'weekly' | 'monthly' | 'allTime' = 'weekly'): Promise<LeaderboardUser[]> {
-    if (!isFirebaseConfigured || !db) {
-      return [];
-    }
-
+  async getLeaderboard(period: LeaderboardPeriod = 'weekly'): Promise<LeaderboardUser[]> {
+    if (!isFirebaseConfigured || !db) return [];
+    const key = periodKey(period);
     try {
-      // 1. Try period collection first
-      const periodRef = collection(db, 'leaderboards', period, 'entries');
-      const snap = await getDocs(periodRef);
+      const q = query(
+        collection(db, 'leaderboards', key, 'entries'),
+        orderBy('points', 'desc'),
+        limit(50)
+      );
+      const snap = await getDocs(q);
+      const rows = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown> & { id: string }))
+        .filter((row) => !row.hidden)
+        .map((row) => ({
+          uid: row.id,
+          displayName: String(row.displayName || 'Player'),
+          points: Number(row.points) || 0,
+          wins: Number(row.wins) || 0,
+        }));
 
-      const rawUsers: { uid: string; displayName: string; points: number; wins: number }[] = [];
-
-      if (!snap.empty) {
-        snap.forEach((d) => {
-          const data = d.data();
-          rawUsers.push({
-            uid: d.id,
-            displayName: data.displayName || 'Player',
-            points: Number(data.points) || 0,
-            wins: Number(data.wins) || 0,
-          });
-        });
-      }
-
-      // 2. If period entries are empty or sparse, merge with global /users
-      if (rawUsers.length === 0) {
-        const usersRef = collection(db, 'users');
-        const usersSnap = await getDocs(usersRef);
-        usersSnap.forEach((d) => {
-          const data = d.data();
-          const basePoints = Number(data.points) || 0;
-          // Partition points realistically for weekly vs monthly vs all-time
-          const multiplier = period === 'weekly' ? 0.45 : period === 'monthly' ? 0.8 : 1.0;
-          const calculatedPoints = period === 'allTime' ? basePoints : Math.round(basePoints * multiplier);
-
-          rawUsers.push({
-            uid: d.id,
-            displayName: data.displayName || 'Player',
-            points: calculatedPoints,
-            wins: Number(data.stats?.wins) || 0,
-          });
-        });
-      }
-
-      // 3. Sort by points descending with deterministic tiebreaker
-      rawUsers.sort((a, b) => b.points - a.points || b.wins - a.wins);
-
-      return rawUsers.map((u, index) => ({
+      return rows.map((row, index) => ({
         rank: index + 1,
-        uid: u.uid,
-        displayName: u.displayName,
-        points: u.points,
-        wins: u.wins,
-        tier: FirestoreService.calculateTier(u.points),
+        uid: row.uid,
+        displayName: row.displayName,
+        points: row.points,
+        wins: row.wins,
+        tier: tierOf(row.points),
       }));
     } catch (e) {
-      log.warn('FirestoreService', 'Error fetching leaderboard:', e);
-      return [];
+      log.warn('FirestoreService', 'Leaderboard read failed:', e);
+      throw e;
     }
   },
 
   /**
-   * Sync match completion to Firestore (Profile, History & Leaderboard)
+   * Persist one completed match.
+   *
+   * Everything is keyed by `clientMatchId`, and the period entries are written
+   * inside a transaction that refuses to apply the same match twice. A retry
+   * (or an outbox flush after a crash) is therefore a no-op.
    */
   async recordGameResult(
     profile: UserProfile,
-    match: MatchHistoryItem
+    match: MatchHistoryItem,
+    clientMatchId: string,
+    hintsUsed = 0
   ): Promise<void> {
-    if (!isFirebaseConfigured || !db) {
-      return;
+    const database = requireDb();
+    const uid = targetUid(profile);
+    if (!uid) throw new Error('No signed-in user to record the match for.');
+
+    const now = Date.now();
+    const batch = writeBatch(database);
+
+    batch.set(doc(database, 'matches', clientMatchId), {
+      uid,
+      clientMatchId,
+      mode: match.mode,
+      difficulty: match.difficultyOrMode,
+      outcome: match.outcome,
+      attempts: match.attempts,
+      hintsUsed,
+      durationSeconds: match.durationSeconds,
+      score: match.score,
+      targetNumber: match.targetNumber,
+      createdAt: now,
+    });
+
+    batch.set(doc(database, 'users', uid), {
+      uid,
+      displayName: profile.displayName,
+      email: profile.email,
+      isGuest: profile.isGuest,
+      points: profile.points,
+      stats: profile.stats,
+      hideFromLeaderboard: profile.hideFromLeaderboard,
+      updatedAt: now,
+    });
+
+    batch.set(doc(database, 'users', uid, 'history', clientMatchId), {
+      ...match,
+      id: clientMatchId,
+      recordedAt: now,
+    });
+
+    batch.set(doc(database, 'publicProfiles', uid), {
+      uid,
+      displayName: profile.displayName,
+      points: profile.points,
+      wins: profile.stats.wins,
+      tier: tierOf(profile.points),
+      hideFromLeaderboard: profile.hideFromLeaderboard,
+      updatedAt: now,
+    });
+
+    await batch.commit();
+
+    for (const { period, key } of periodKeys()) {
+      await this.applyPeriodAward(profile, match, clientMatchId, period, key);
     }
+  },
 
-    try {
-      // Use current authenticated user or anonymous fallback only for guest players
-      const currentAuthUser = auth?.currentUser || (profile.isGuest ? await AuthService.ensureAuthenticatedUser() : null);
-      const targetUid = currentAuthUser?.uid || profile.uid;
+  /**
+   * Add one match's award to one period board. The transaction reads the
+   * current entry so points stay absolute, monotonic, and capped by rules.
+   */
+  async applyPeriodAward(
+    profile: UserProfile,
+    match: MatchHistoryItem,
+    clientMatchId: string,
+    period: LeaderboardPeriod,
+    key: string
+  ): Promise<void> {
+    const database = requireDb();
+    const uid = targetUid(profile);
+    const entryRef = doc(database, 'leaderboards', key, 'entries', uid);
 
-      if (!targetUid) return;
+    await runTransaction(database, async (tx) => {
+      const snapshot = await tx.get(entryRef);
+      const current = snapshot.exists() ? snapshot.data() : null;
 
-      // 1. Update /users/{uid} document with latest stats
-      const userRef = doc(db, 'users', targetUid);
-      await setDoc(
-        userRef,
+      if (current?.lastMatchId === clientMatchId) return; // already awarded
+
+      const previousPoints = Number(current?.points) || 0;
+      const previousWins = Number(current?.wins) || 0;
+      const award = Math.max(0, Math.min(match.score, MAX_SINGLE_AWARD));
+      const points = previousPoints + award;
+
+      tx.set(
+        entryRef,
         {
+          uid,
           displayName: profile.displayName,
-          points: profile.points,
-          stats: profile.stats,
-          hideFromLeaderboard: profile.hideFromLeaderboard,
+          points,
+          wins: previousWins + (match.outcome === 'Victory' ? 1 : 0),
+          tier: tierOf(points),
+          hidden: profile.hideFromLeaderboard,
+          lastMatchId: clientMatchId,
+          period,
           updatedAt: Date.now(),
         },
         { merge: true }
       );
-
-      // 2. Save match to user's match history subcollection
-      const historyRef = doc(db, 'users', targetUid, 'history', match.id);
-      await setDoc(historyRef, {
-        ...match,
-        recordedAt: Date.now(),
-      });
-
-      // 3. Update active period leaderboard entries
-      const periods: ('weekly' | 'monthly' | 'allTime')[] = ['weekly', 'monthly', 'allTime'];
-      for (const p of periods) {
-        const entryRef = doc(db, 'leaderboards', p, 'entries', targetUid);
-        await setDoc(
-          entryRef,
-          {
-            displayName: profile.displayName,
-            points: profile.points,
-            wins: profile.stats.wins,
-            tier: FirestoreService.calculateTier(profile.points),
-            updatedAt: Date.now(),
-          },
-          { merge: true }
-        );
-      }
-    } catch (e) {
-      log.warn('FirestoreService', 'Error recording game result:', e);
-    }
+    });
   },
 
-  /**
-   * Fetch User's Private Match History from Firestore
-   */
+  /** Fetch a user's private history (most recent 50). */
   async getUserMatchHistory(uid: string): Promise<MatchHistoryItem[]> {
     if (!isFirebaseConfigured || !db || !uid) return [];
     try {
-      const historyCol = collection(db, 'users', uid, 'history');
-      const q = query(historyCol, orderBy('recordedAt', 'desc'), limit(50));
+      const q = query(
+        collection(db, 'users', uid, 'history'),
+        orderBy('recordedAt', 'desc'),
+        limit(50)
+      );
       const snap = await getDocs(q);
-      const items: MatchHistoryItem[] = [];
-      snap.forEach((d) => {
-        items.push(d.data() as MatchHistoryItem);
-      });
-      return items;
+      return snap.docs.map((d) => d.data() as MatchHistoryItem);
     } catch (e) {
-      log.warn('FirestoreService', 'Error fetching user history:', e);
+      log.warn('FirestoreService', 'History read failed:', e);
       return [];
     }
   },
 
-  calculateTier(points: number): 'Grandmaster' | 'Master' | 'Diamond' | 'Gold' | 'Silver' | 'Bronze' {
-    if (points >= 3000) return 'Grandmaster';
-    if (points >= 2000) return 'Master';
-    if (points >= 1200) return 'Diamond';
-    if (points >= 600) return 'Gold';
-    if (points >= 200) return 'Silver';
-    return 'Bronze';
+  /** Hide/show a player on every board without destroying their points. */
+  async setLeaderboardVisibility(profile: UserProfile, hidden: boolean): Promise<void> {
+    const database = requireDb();
+    const uid = targetUid(profile);
+    const now = Date.now();
+
+    await setDoc(
+      doc(database, 'publicProfiles', uid),
+      { hideFromLeaderboard: hidden, updatedAt: now },
+      { merge: true }
+    ).catch(() => {});
+
+    for (const { key } of periodKeys()) {
+      // A player with no match in this window has no entry to hide yet.
+      await setDoc(
+        doc(database, 'leaderboards', key, 'entries', uid),
+        { hidden, updatedAt: now },
+        { merge: true }
+      ).catch(() => {});
+    }
   },
+
+  /**
+   * Remove every document owned by a user. Called right before the auth record
+   * is deleted, so the account leaves no trace (FR-4).
+   */
+  async deleteAccountData(uid: string): Promise<void> {
+    const database = requireDb();
+
+    const [historySnap, matchesSnap] = await Promise.all([
+      getDocs(query(collection(database, 'users', uid, 'history'), limit(450))),
+      getDocs(query(collection(database, 'matches'), where('uid', '==', uid), limit(450))),
+    ]);
+
+    const refs = [
+      ...historySnap.docs.map((d) => d.ref),
+      ...matchesSnap.docs.map((d) => d.ref),
+      doc(database, 'users', uid),
+      doc(database, 'publicProfiles', uid),
+      ...periodKeys().map(({ key }) => doc(database, 'leaderboards', key, 'entries', uid)),
+    ];
+
+    // Firestore allows 500 operations per batch.
+    for (let i = 0; i < refs.length; i += 450) {
+      const batch = writeBatch(database);
+      for (const ref of refs.slice(i, i + 450)) batch.delete(ref);
+      await batch.commit();
+    }
+
+    // A user with a very long history may need a second pass.
+    if (historySnap.size === 450) {
+      const more = await getDocs(query(collection(database, 'users', uid, 'history'), limit(450)));
+      await Promise.all(more.docs.map((d) => deleteDoc(d.ref)));
+    }
+  },
+
+  calculateTier: tierOf,
 };

@@ -63,10 +63,13 @@ export interface MultiplayerRoom {
   guestUid?: string;
   hostName: string;
   guestName?: string;
-  status: 'WAITING' | 'MODE_SELECTION' | 'CONFIRMING' | 'PLAYING' | 'RESULT' | 'EXPIRED';
+  status: 'WAITING' | 'MODE_SELECTION' | 'CONFIRMING' | 'PLAYING' | 'RESULT' | 'EXPIRED' | 'CLOSED';
   selectedMode: MultiplayerMode;
-  targetNumber?: number; // Server-only or held by setter
+  /** Revealed only when the round ends (referee model, PRD §6.3). */
+  targetNumber?: number;
+  /** The referee. Holds the secret locally while PLAYING. */
   setterUid?: string;
+  roundId?: string;
   currentTurnUid?: string;
   turnDeadline?: number;
   createdAt: number;
@@ -78,7 +81,15 @@ export interface MultiplayerRoom {
     result: GuessResult;
     timestamp: number;
   }[];
+  /** A guess the referee still has to evaluate. */
+  pendingGuess?: {
+    uid: string;
+    playerName: string;
+    guessNumber: number;
+    timestamp: number;
+  } | null;
   winnerUid?: string;
+  closedBy?: string;
   rematchAgreed: string[]; // List of uids who clicked Rematch
 }
 

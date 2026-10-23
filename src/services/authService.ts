@@ -1,5 +1,8 @@
 import {
   createUserWithEmailAndPassword,
+  deleteUser,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
   signInWithEmailAndPassword,
   signInAnonymously,
   sendPasswordResetEmail,
@@ -9,27 +12,14 @@ import {
   User,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { auth, db, isFirebaseConfigured } from './firebaseConfig';
+import { auth, db, isFirebaseConfigured } from '../lib/firebase';
 import { log } from '../lib/log';
+import { periodKeys } from '../lib/periods';
 import { UserProfile } from '../types';
 import { StorageService } from './storage';
+import { FirestoreService } from './firestoreService';
 
 export const AuthService = {
-  /**
-   * Ensure user is authenticated in Firebase (fallback to anonymous so Firestore rules pass)
-   */
-  async ensureAuthenticatedUser(): Promise<User | null> {
-    if (!isFirebaseConfigured || !auth) return null;
-    if (auth.currentUser) return auth.currentUser;
-    try {
-      const cred = await signInAnonymously(auth);
-      return cred.user;
-    } catch (e) {
-      log.warn('AuthService', 'Anonymous sign-in fallback failed:', e);
-      return null;
-    }
-  },
-
   /**
    * Listen to real-time auth changes (session persistence across app restarts)
    */
@@ -223,17 +213,50 @@ export const AuthService = {
    * Update Display Name
    */
   async updateDisplayName(uid: string, newName: string): Promise<void> {
+    const name = newName.trim();
     if (auth?.currentUser) {
-      await updateProfile(auth.currentUser, { displayName: newName.trim() });
+      await updateProfile(auth.currentUser, { displayName: name });
     }
     if (db && uid) {
       try {
-        const userDocRef = doc(db, 'users', uid);
-        await updateDoc(userDocRef, { displayName: newName.trim() });
+        await updateDoc(doc(db, 'users', uid), { displayName: name });
+        await updateDoc(doc(db, 'publicProfiles', uid), { displayName: name }).catch(() => {});
+        for (const { key } of periodKeys()) {
+          await updateDoc(doc(db, 'leaderboards', key, 'entries', uid), { displayName: name }).catch(
+            () => {}
+          );
+        }
       } catch (e) {
         log.warn('AuthService', 'Update display name in firestore error:', e);
       }
     }
+  },
+
+  /**
+   * Delete the account and everything it owns (FR-4). Email accounts must
+   * re-authenticate first; guests have no credentials to confirm.
+   */
+  async deleteAccount(profile: UserProfile, password?: string): Promise<void> {
+    const user = auth?.currentUser;
+    if (!isFirebaseConfigured || !user) {
+      await StorageService.clearProfile();
+      await StorageService.clearHistory(profile.uid);
+      return;
+    }
+
+    if (!user.isAnonymous) {
+      if (!password) throw new Error('Enter your password to confirm deletion.');
+      if (!user.email) throw new Error('This account has no email to re-authenticate.');
+      const credential = EmailAuthProvider.credential(user.email, password);
+      await reauthenticateWithCredential(user, credential);
+    }
+
+    // Remove the data before the auth record: once the user is gone, rules
+    // would reject the cleanup writes.
+    await FirestoreService.deleteAccountData(user.uid);
+    await deleteUser(user);
+    await StorageService.clearProfile();
+    await StorageService.clearHistory(profile.uid);
   },
 
   /**
@@ -268,6 +291,8 @@ export function formatAuthError(error: any): string {
       return 'Network error. Please check your internet connection.';
     case 'auth/too-many-requests':
       return 'Access temporarily blocked due to many failed attempts. Try again later.';
+    case 'auth/requires-recent-login':
+      return 'Please sign in again before deleting your account.';
     default:
       return error?.message || 'Authentication failed. Please verify your credentials.';
   }

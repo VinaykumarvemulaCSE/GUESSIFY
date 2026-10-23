@@ -16,14 +16,9 @@ export const SplashScreen: React.FC = () => {
         return;
       }
 
-      // Restore session on the basis of last session credentials
+      // Restore the last session, guest included (FR-1 / B12).
       const savedProfile = await StorageService.getSavedProfile();
-      if (savedProfile && !savedProfile.isGuest) {
-        router.replace(ROUTES.dashboard);
-      } else {
-        // Ask user to sign in or get started
-        router.replace(ROUTES.login);
-      }
+      router.replace(savedProfile ? ROUTES.dashboard : ROUTES.login);
     } catch {
       router.replace(ROUTES.login);
     }
@@ -32,7 +27,7 @@ export const SplashScreen: React.FC = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       proceedToApp();
-    }, 1800);
+    }, 1200);
     return () => clearTimeout(timer);
   }, [proceedToApp]);
 

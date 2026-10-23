@@ -16,8 +16,6 @@ export const LiveMultiplayerScreen: React.FC = () => {
   } = useApp();
 
   const [currentInput, setCurrentInput] = useState('');
-  const [lastResult, setLastResult] = useState<GuessResult | null>(null);
-  const [lastGuessedNum, setLastGuessedNum] = useState<number | undefined>();
   const [outOfRangeError, setOutOfRangeError] = useState<string | null>(null);
   const feedScrollRef = useRef<ScrollView>(null);
 
@@ -36,12 +34,16 @@ export const LiveMultiplayerScreen: React.FC = () => {
     );
   }
 
+  const myLastGuess = [...activeRoom.guesses].reverse().find((g) => g.uid === profile.uid);
+  const lastResult: GuessResult | null = myLastGuess?.result ?? null;
+  const lastGuessedNum = myLastGuess?.guessNumber;
+  const isAwaitingReferee = Boolean(
+    activeRoom.pendingGuess && activeRoom.pendingGuess.uid === profile.uid
+  );
   const isMyTurn =
-    activeRoom.selectedMode === 'BOTH_TOGETHER'
-      ? activeRoom.currentTurnUid === profile.uid
-      : activeRoom.selectedMode === 'HOST_GUESSES'
-        ? profile.uid === activeRoom.hostUid
-        : profile.uid !== activeRoom.hostUid;
+    activeRoom.status === 'PLAYING' &&
+    activeRoom.currentTurnUid === profile.uid &&
+    !isAwaitingReferee;
 
   const handleNum = (num: string) => {
     if (outOfRangeError) setOutOfRangeError(null);
@@ -74,9 +76,11 @@ export const LiveMultiplayerScreen: React.FC = () => {
       return;
     }
     setOutOfRangeError(null);
-    setLastGuessedNum(val);
     const res = await submitMultiplayerGuess(val);
-    if (res) setLastResult(res);
+    if (!res.ok) {
+      Alert.alert('Guess not sent', res.error || 'Try again in a moment.');
+      return;
+    }
     setCurrentInput('');
   };
 
@@ -139,7 +143,11 @@ export const LiveMultiplayerScreen: React.FC = () => {
             { color: isMyTurn ? COLORS.primaryContainer : COLORS.secondary },
           ]}
         >
-          {isMyTurn ? 'YOUR TURN — ENTER GUESS' : "OPPONENT'S TURN — AWAITING MOVE"}
+          {isMyTurn
+            ? 'YOUR TURN — ENTER GUESS'
+            : isAwaitingReferee
+              ? 'GUESS SENT — SCORING...'
+              : "OPPONENT'S TURN — AWAITING MOVE"}
         </Text>
       </View>
 
@@ -336,7 +344,11 @@ export const LiveMultiplayerScreen: React.FC = () => {
       ) : (
         <View style={styles.waitingArea}>
           <View style={styles.waitingDot} />
-          <Text style={styles.waitingText}>Waiting for opponent to submit guess...</Text>
+          <Text style={styles.waitingText}>
+            {isAwaitingReferee
+              ? 'Referee is scoring your guess...'
+              : 'Waiting for opponent to submit guess...'}
+          </Text>
         </View>
       )}
     </View>

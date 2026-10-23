@@ -1,46 +1,231 @@
 rules_version = '2';
+
+// Guessify — free-plan integrity model (PRD §8.2).
+// No Cloud Functions: ownership, shape, caps and idempotent IDs do the work.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function
-    function isAuthenticated() {
+    function signedIn() {
       return request.auth != null;
     }
 
-    // 1. User Profiles & Subcollections (history, stats)
-    // Public read for leaderboards and player lookups; owner can write
-    match /users/{userId} {
-      allow read: if true;
-      allow write: if isAuthenticated() && request.auth.uid == userId;
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
 
-      match /{allSubcollections=**} {
-        allow read: if true;
-        allow write: if isAuthenticated() && request.auth.uid == userId;
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isNumber(v) {
+      return v is number || v is int;
+    }
+
+    function between(v, min, max) {
+      return isNumber(v) && v >= min && v <= max;
+    }
+
+    function shortString(v, max) {
+      return v is string && v.size() > 0 && v.size() <= max;
+    }
+
+    function validStats(s) {
+      return s is map
+        && s.keys().hasOnly([
+             'gamesPlayed', 'wins', 'losses', 'winRate', 'highScore',
+             'currentStreak', 'bestStreak', 'averageAttempts'
+           ])
+        && s.gamesPlayed is int && s.gamesPlayed >= 0
+        && s.wins is int && s.wins >= 0
+        && s.losses is int && s.losses >= 0
+        && s.wins <= s.gamesPlayed
+        && s.losses <= s.gamesPlayed
+        && s.winRate is int && s.winRate >= 0 && s.winRate <= 100
+        && isNumber(s.highScore) && s.highScore >= 0
+        && s.currentStreak is int && s.currentStreak >= 0
+        && s.bestStreak is int && s.bestStreak >= s.currentStreak
+        && isNumber(s.averageAttempts) && s.averageAttempts >= 0;
+    }
+
+    function validProfile() {
+      return incoming().uid == request.auth.uid
+        && shortString(incoming().displayName, 40)
+        && incoming().email is string && incoming().email.size() <= 120
+        && incoming().isGuest is bool
+        && between(incoming().points, 0, 1000000)
+        && validStats(incoming().stats)
+        && incoming().hideFromLeaderboard is bool;
+    }
+
+    // Owner-only profile. Monotonic points: a write can never lower a score.
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && validProfile();
+      allow update: if isOwner(uid) && (
+        (incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt'])
+          && shortString(incoming().displayName, 40))
+        || (validProfile() && incoming().points >= existing().points)
+      );
+      allow delete: if isOwner(uid);
+
+      match /history/{matchId} {
+        allow read, write: if isOwner(uid);
       }
     }
 
-    // 2. Multiplayer Rooms & Guesses
+    // Denormalised public card. Never contains an email.
+    match /publicProfiles/{uid} {
+      allow read: if signedIn();
+      allow create, update: if isOwner(uid)
+        && incoming().uid == uid
+        && shortString(incoming().displayName, 40)
+        && between(incoming().points, 0, 1000000)
+        && incoming().wins is int && incoming().wins >= 0
+        && incoming().hideFromLeaderboard is bool
+        && incoming().tier in ['Bronze', 'Silver', 'Gold', 'Diamond', 'Master', 'Grandmaster'];
+      allow delete: if isOwner(uid);
+    }
+
+    // One document per completed match; its id is the client's idempotency key.
+    match /matches/{matchId} {
+      allow read: if signedIn() && existing().uid == request.auth.uid;
+      allow create: if signedIn()
+        && incoming().keys().hasOnly([
+             'uid', 'clientMatchId', 'mode', 'difficulty', 'outcome', 'attempts',
+             'hintsUsed', 'durationSeconds', 'score', 'targetNumber', 'createdAt'
+           ])
+        && incoming().uid == request.auth.uid
+        && incoming().clientMatchId == matchId
+        && incoming().mode in ['Solo', 'Multiplayer']
+        && incoming().outcome in ['Victory', 'Defeat', 'Draw']
+        && shortString(incoming().difficulty, 24)
+        && incoming().attempts is int && incoming().attempts >= 0 && incoming().attempts <= 1000
+        && incoming().hintsUsed is int && incoming().hintsUsed >= 0 && incoming().hintsUsed <= 2
+        && between(incoming().durationSeconds, 0, 86400)
+        && between(incoming().score, 0, 1200)
+        && between(incoming().targetNumber, 0, 1000)
+        && incoming().createdAt is int;
+      allow delete: if signedIn() && existing().uid == request.auth.uid;
+      allow update: if false;
+    }
+
+    // Period boards. Public read; the owner may add at most one match award
+    // (≤ 1200) per write, and only with a new clientMatchId.
+    match /leaderboards/{periodKey}/entries/{uid} {
+      allow read: if true;
+
+      allow create: if isOwner(uid)
+        && incoming().uid == uid
+        && shortString(incoming().displayName, 40)
+        && between(incoming().points, 0, 1200)
+        && incoming().wins is int && incoming().wins >= 0 && incoming().wins <= 1
+        && incoming().tier in ['Bronze', 'Silver', 'Gold', 'Diamond', 'Master', 'Grandmaster']
+        && incoming().hidden is bool
+        && shortString(incoming().lastMatchId, 200);
+
+      allow update: if isOwner(uid)
+        && incoming().uid == uid
+        && shortString(incoming().displayName, 40)
+        && between(incoming().points, existing().points, existing().points + 1200)
+        && incoming().wins is int && incoming().wins >= existing().wins
+        && incoming().hidden is bool
+        && shortString(incoming().lastMatchId, 200)
+        && (
+          incoming().lastMatchId != existing().lastMatchId
+          || (incoming().points == existing().points && incoming().wins == existing().wins)
+        );
+
+      allow delete: if isOwner(uid);
+    }
+
+    // Duel rooms. The secret never lands here while PLAYING (referee model):
+    // the setter's device scores guesses and reveals the target only on RESULT.
     match /rooms/{roomId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated() && resource.data.hostUid == request.auth.uid;
+      // Signed-in read is required for join-by-code without a server. Room
+      // documents contain display names and guesses only, never emails.
+      allow read: if signedIn();
 
-      match /guesses/{guessId} {
-        allow read, write: if isAuthenticated();
-      }
+      allow create: if signedIn()
+        && incoming().keys().hasOnly([
+             'roomId', 'code', 'hostUid', 'hostName', 'status', 'selectedMode',
+             'createdAt', 'expiresAt', 'guesses', 'rematchAgreed'
+           ])
+        && incoming().hostUid == request.auth.uid
+        && incoming().roomId == roomId
+        && shortString(incoming().code, 6)
+        && shortString(incoming().hostName, 40)
+        && incoming().status == 'WAITING'
+        && incoming().guesses.size() == 0
+        && incoming().rematchAgreed.size() == 0
+        && incoming().createdAt is int
+        && incoming().expiresAt is int;
+
+      allow update: if signedIn()
+        // Participants, or a stranger taking the open guest seat.
+        && (
+          existing().hostUid == request.auth.uid
+          || existing().guestUid == request.auth.uid
+          || (!('guestUid' in existing()) && incoming().guestUid == request.auth.uid)
+        )
+        // Identity fields never change.
+        && incoming().hostUid == existing().hostUid
+        && incoming().code == existing().code
+        && incoming().createdAt == existing().createdAt
+        && incoming().roomId == existing().roomId
+        // Seat can only be claimed, never stolen.
+        && (
+          (!('guestUid' in existing()) && !('guestUid' in incoming()))
+          || (!('guestUid' in existing()) && incoming().guestUid == request.auth.uid)
+          || ('guestUid' in existing() && 'guestUid' in incoming()
+              && incoming().guestUid == existing().guestUid)
+        )
+        // The room may be extended, never pushed years out.
+        && incoming().expiresAt is int
+        && incoming().expiresAt <= existing().expiresAt + 600000
+        // Only the referee may write the revealed target, and only at RESULT.
+        && (
+          !('targetNumber' in incoming())
+          || (existing().setterUid == request.auth.uid && incoming().status == 'RESULT')
+        )
+        // Guess log: at most one new record per update, written by the referee.
+        && incoming().guesses.size() <= existing().guesses.size() + 1
+        && (
+          incoming().guesses.size() <= existing().guesses.size()
+          || existing().setterUid == request.auth.uid
+        )
+        // A new round clears the log; only the referee does that.
+        && (
+          incoming().guesses.size() >= existing().guesses.size()
+          || (existing().status == 'RESULT' && existing().setterUid == request.auth.uid)
+        )
+        // A queued guess belongs to the player whose turn it is.
+        && (
+          !('pendingGuess' in incoming())
+          || incoming().status != 'PLAYING'
+          || incoming().pendingGuess == null
+          || (
+            'currentTurnUid' in existing()
+            && existing().currentTurnUid == request.auth.uid
+            && existing().status == 'PLAYING'
+            && incoming().pendingGuess.uid == request.auth.uid
+          )
+        )
+        // Rematch votes: only append your own uid.
+        && incoming().rematchAgreed.size() <= 2
+        && incoming().rematchAgreed.toSet().difference(existing().rematchAgreed.toSet())
+             .hasOnly([request.auth.uid]);
+
+      allow delete: if false;
     }
 
-    // 3. Leaderboards (Weekly, Monthly, All-Time)
-    // Public read so everyone can view ranks; authenticated users can update their entry
-    match /leaderboards/{period}/entries/{userId} {
+    // Feature flags / minimum version. Console-managed only.
+    match /config/{docId} {
       allow read: if true;
-      allow write: if isAuthenticated() && request.auth.uid == userId;
-    }
-
-    // 4. Global match history
-    match /history/{historyId} {
-      allow read, write: if isAuthenticated();
+      allow write: if false;
     }
   }
 }

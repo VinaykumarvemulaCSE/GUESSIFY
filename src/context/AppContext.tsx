@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import {
   UserProfile,
@@ -18,13 +18,35 @@ import {
   generateHints,
   calculateGuessFeedback,
   MULTIPLAYER_POINTS,
+  refereeFor,
 } from '../constants/gameRules';
 import { AuthService } from '../services/authService';
 import { FirestoreMultiplayer } from '../services/firestoreMultiplayer';
 import { FirestoreService } from '../services/firestoreService';
-import { isFirebaseConfigured } from '../services/firebaseConfig';
+import { auth, isFirebaseConfigured } from '../lib/firebase';
 import { log } from '../lib/log';
 import { ROUTES } from '../lib/routes';
+import { duelMatchId, soloMatchId } from '../lib/ids';
+import { Outbox } from '../lib/outbox';
+
+const EMPTY_PROFILE: UserProfile = {
+  uid: '',
+  displayName: 'Player',
+  email: '',
+  isGuest: true,
+  points: 0,
+  stats: {
+    gamesPlayed: 0,
+    wins: 0,
+    losses: 0,
+    winRate: 0,
+    highScore: 0,
+    currentStreak: 0,
+    bestStreak: 0,
+    averageAttempts: 0,
+  },
+  hideFromLeaderboard: false,
+};
 
 interface AppContextType {
   // Profile & Auth
@@ -36,10 +58,12 @@ interface AppContextType {
   resetPasswordEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
   updateDisplayName: (name: string) => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: (password?: string) => Promise<{ success: boolean; error?: string }>;
 
   // Settings
   settings: AppSettings;
   updateSettings: (newSettings: Partial<AppSettings>) => Promise<void>;
+  setLeaderboardHidden: (hidden: boolean) => Promise<void>;
 
   // Solo Game
   soloGame: SoloGameSession | null;
@@ -55,7 +79,9 @@ interface AppContextType {
   joinMultiplayerRoom: (code: string) => Promise<{ success: boolean; error?: string }>;
   setRoomMode: (mode: any) => Promise<void>;
   startMultiplayerGame: (secret?: number) => Promise<void>;
-  submitMultiplayerGuess: (guessNum: number) => Promise<GuessResult | null>;
+  submitMultiplayerGuess: (
+    guessNum: number
+  ) => Promise<{ ok: boolean; result?: GuessResult; error?: string }>;
   requestRematch: () => Promise<void>;
   leaveRoom: () => Promise<void>;
 
@@ -64,29 +90,28 @@ interface AppContextType {
   clearMatchHistory: () => Promise<void>;
   leaderboardUsers: LeaderboardUser[];
   refreshLeaderboard: (period?: 'weekly' | 'monthly' | 'allTime') => Promise<void>;
+
+  /** Awards waiting for the network. */
+  pendingSync: number;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
+function prependHistory(
+  historyRef: React.MutableRefObject<MatchHistoryItem[]>,
+  setHistory: (items: MatchHistoryItem[]) => void,
+  item: MatchHistoryItem,
+  uid: string
+) {
+  const next = [item, ...historyRef.current];
+  historyRef.current = next;
+  setHistory(next);
+  StorageService.saveMatchHistory(next, uid).catch(() => {});
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [profile, setProfile] = useState<UserProfile>({
-    uid: '',
-    displayName: 'Player',
-    email: '',
-    isGuest: true,
-    points: 0,
-    stats: {
-      gamesPlayed: 0,
-      wins: 0,
-      losses: 0,
-      winRate: 0,
-      highScore: 0,
-      currentStreak: 0,
-      bestStreak: 0,
-      averageAttempts: 0,
-    },
-    hideFromLeaderboard: false,
-  });
+  const [profile, setProfile] = useState<UserProfile>(EMPTY_PROFILE);
+  const profileRef = useRef<UserProfile>(EMPTY_PROFILE);
 
   const [settings, setSettings] = useState<AppSettings>({
     soundEnabled: true,
@@ -95,92 +120,133 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [matchHistory, setMatchHistory] = useState<MatchHistoryItem[]>([]);
+  const matchHistoryRef = useRef<MatchHistoryItem[]>([]);
+
   const [soloGame, setSoloGame] = useState<SoloGameSession | null>(null);
   const [availableHints, setAvailableHints] = useState<any[]>([]);
   const [activeRoom, setActiveRoom] = useState<MultiplayerRoom | null>(null);
+  const [leaderboardUsers, setLeaderboardUsers] = useState<LeaderboardUser[]>([]);
+  const [pendingSync, setPendingSync] = useState(0);
 
   const roomUnsubscribeRef = useRef<(() => void) | null>(null);
+  const lastProcessedRoomResultRef = useRef<string | null>(null);
+  const lastStartedRoundRef = useRef<string | null>(null);
+  const refereeSecretRef = useRef<{ roomId: string; secret: number } | null>(null);
 
-  // Dynamic Leaderboard Dataset loaded from Firestore
-  const [leaderboardUsers, setLeaderboardUsers] = useState<LeaderboardUser[]>([
-    { rank: 1, uid: 'guest_user_1', displayName: 'CyberGuesser', points: 450, wins: 4, tier: 'Silver', isCurrentUser: true },
-  ]);
+  const applyProfile = useCallback((updated: UserProfile) => {
+    profileRef.current = updated;
+    setProfile(updated);
+    StorageService.saveProfile(updated).catch(() => {});
+  }, []);
 
-  const refreshLeaderboard = async (period: 'weekly' | 'monthly' | 'allTime' = 'weekly') => {
-    try {
-      const realUsers = await FirestoreService.getLeaderboard(period);
-      if (realUsers && realUsers.length > 0) {
-        // Tag current user in the leaderboard
-        const tagged = realUsers.map((u) => ({
-          ...u,
-          isCurrentUser: u.uid === profile.uid,
-        }));
-        setLeaderboardUsers(tagged);
-      } else {
-        // At minimum show the active logged-in player
-        setLeaderboardUsers([
-          {
-            rank: 1,
-            uid: profile.uid,
-            displayName: profile.displayName,
-            points: profile.points,
-            wins: profile.stats.wins,
-            tier: FirestoreService.calculateTier(profile.points),
-            isCurrentUser: true,
-          },
-        ]);
+  const setHistory = useCallback((items: MatchHistoryItem[]) => {
+    matchHistoryRef.current = items;
+    setMatchHistory(items);
+  }, []);
+
+  /**
+   * One award path: try the network, otherwise durably queue it. Firestore IDs
+   * make the queued retry a no-op if it already landed.
+   */
+  const awardMatch = useCallback(
+    async (
+      updatedProfile: UserProfile,
+      match: MatchHistoryItem,
+      clientMatchId: string,
+      hintsUsed = 0
+    ) => {
+      if (!isFirebaseConfigured) return;
+      try {
+        await FirestoreService.recordGameResult(updatedProfile, match, clientMatchId, hintsUsed);
+        await Outbox.remove(clientMatchId);
+      } catch (e) {
+        log.warn('App', 'Award queued for retry:', e);
+        await Outbox.add({ clientMatchId, profile: updatedProfile, match, hintsUsed });
+        const queued = await Outbox.list();
+        setPendingSync(queued.length);
       }
-    } catch (e) {
-      log.warn('AppContext', 'Failed to refresh leaderboard:', e);
-    }
-  };
+    },
+    []
+  );
 
-  const loadUserHistory = async (uid: string) => {
+  const loadUserHistory = useCallback(async (uid: string) => {
     const local = await StorageService.getMatchHistory(uid);
-    setMatchHistory(local);
+    setHistory(local);
 
     if (uid && !uid.startsWith('guest_') && !uid.startsWith('local_')) {
       FirestoreService.getUserMatchHistory(uid).then((cloud) => {
         if (cloud && cloud.length > 0) {
-          setMatchHistory(cloud);
-          StorageService.saveMatchHistory(cloud, uid);
+          setHistory(cloud);
+          StorageService.saveMatchHistory(cloud, uid).catch(() => {});
         }
       });
     }
-  };
+  }, [setHistory]);
 
+  const refreshLeaderboard = useCallback(
+    async (period: 'weekly' | 'monthly' | 'allTime' = 'weekly') => {
+      if (!isFirebaseConfigured) {
+        setLeaderboardUsers([]);
+        return;
+      }
+      try {
+        const rows = await FirestoreService.getLeaderboard(period);
+        setLeaderboardUsers(rows.map((u) => ({ ...u, isCurrentUser: u.uid === profileRef.current.uid })));
+      } catch (e) {
+        log.warn('App', 'Leaderboard refresh failed:', e);
+      }
+    },
+    []
+  );
+
+  // Restore profile + settings, then follow Firebase auth.
   useEffect(() => {
-    // 1. Load cached profile only if an authenticated user session was saved
-    StorageService.getSavedProfile().then((cachedProfile) => {
-      if (cachedProfile && !cachedProfile.isGuest) {
-        setProfile(cachedProfile);
-        loadUserHistory(cachedProfile.uid);
+    StorageService.getSavedProfile().then((cached) => {
+      if (cached) {
+        applyProfile(cached);
+        loadUserHistory(cached.uid);
       }
     });
     StorageService.getSettings().then(setSettings);
 
-    // 2. Subscribe to Firebase Auth state for real session persistence across app restarts
     const unsubAuth = AuthService.subscribeToAuthState((firebaseProfile) => {
-      if (firebaseProfile && !firebaseProfile.isGuest) {
-        setProfile(firebaseProfile);
-        StorageService.saveProfile(firebaseProfile);
+      if (firebaseProfile) {
+        applyProfile(firebaseProfile);
         loadUserHistory(firebaseProfile.uid);
       }
     });
 
     return () => {
       unsubAuth();
-      if (roomUnsubscribeRef.current) {
-        roomUnsubscribeRef.current();
-      }
+      roomUnsubscribeRef.current?.();
     };
-  }, []);
+  }, [applyProfile, loadUserHistory]);
 
-  // Auth Operations
+  // Flush awards that were finished offline.
+  useEffect(() => {
+    if (!isFirebaseConfigured || !auth?.currentUser) return;
+    Outbox.flush((award) =>
+      FirestoreService.recordGameResult(
+        award.profile,
+        award.match,
+        award.clientMatchId,
+        award.hintsUsed
+      )
+    )
+      .then(async (sent) => {
+        const queued = await Outbox.list();
+        setPendingSync(queued.length);
+        if (sent > 0) refreshLeaderboard('weekly');
+      })
+      .catch(() => {});
+  }, [profile.uid, refreshLeaderboard]);
+
+  // Auth operations
   const loginWithEmail = async (email: string, pass: string) => {
     try {
       const loggedProfile = await AuthService.login(email, pass);
-      setProfile(loggedProfile);
+      applyProfile(loggedProfile);
+      await loadUserHistory(loggedProfile.uid);
       router.replace(ROUTES.dashboard);
       return { success: true };
     } catch (e: any) {
@@ -191,7 +257,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const signUpUser = async (name: string, email: string, pass: string) => {
     try {
       const newProfile = await AuthService.signUp(name, email, pass);
-      setProfile(newProfile);
+      applyProfile(newProfile);
+      await loadUserHistory(newProfile.uid);
       router.replace(ROUTES.dashboard);
       return { success: true };
     } catch (e: any) {
@@ -202,19 +269,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const loginAsGuest = async () => {
     try {
       const guestProfile = await AuthService.loginAsGuest();
-      setProfile(guestProfile);
-      router.replace(ROUTES.dashboard);
+      applyProfile(guestProfile);
+      await loadUserHistory(guestProfile.uid);
     } catch {
       const updated: UserProfile = {
-        ...profile,
+        ...profileRef.current,
         uid: `guest_${Date.now()}`,
         displayName: 'Guest Player',
         isGuest: true,
       };
-      setProfile(updated);
-      await StorageService.saveProfile(updated);
-      router.replace(ROUTES.dashboard);
+      applyProfile(updated);
     }
+    router.replace(ROUTES.dashboard);
   };
 
   const resetPasswordEmail = async (email: string) => {
@@ -229,36 +295,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateDisplayName = async (name: string) => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const updated = { ...profile, displayName: trimmed };
-    setProfile(updated);
-    await StorageService.saveProfile(updated);
-    await AuthService.updateDisplayName(profile.uid, trimmed);
+    const updated = { ...profileRef.current, displayName: trimmed };
+    applyProfile(updated);
+    await AuthService.updateDisplayName(updated.uid, trimmed);
     refreshLeaderboard('weekly');
   };
 
   const logout = async () => {
+    roomUnsubscribeRef.current?.();
+    roomUnsubscribeRef.current = null;
+    setActiveRoom(null);
     await AuthService.signOut();
     await StorageService.clearProfile();
-    setProfile({
-      uid: '',
-      displayName: 'Player',
-      email: '',
-      isGuest: true,
-      points: 0,
-      stats: {
-        gamesPlayed: 0,
-        wins: 0,
-        losses: 0,
-        winRate: 0,
-        highScore: 0,
-        currentStreak: 0,
-        bestStreak: 0,
-        averageAttempts: 0,
-      },
-      hideFromLeaderboard: false,
-    });
-    setMatchHistory([]);
+    applyProfile(EMPTY_PROFILE);
+    setHistory([]);
     router.replace(ROUTES.login);
+  };
+
+  const deleteAccount = async (password?: string) => {
+    try {
+      await AuthService.deleteAccount(profileRef.current, password);
+      roomUnsubscribeRef.current?.();
+      roomUnsubscribeRef.current = null;
+      setActiveRoom(null);
+      applyProfile(EMPTY_PROFILE);
+      setHistory([]);
+      setLeaderboardUsers([]);
+      router.replace(ROUTES.login);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'Account deletion failed' };
+    }
   };
 
   const updateSettings = async (newSettings: Partial<AppSettings>) => {
@@ -267,7 +334,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await StorageService.saveSettings(updated);
   };
 
-  // Single Player Engine
+  const setLeaderboardHidden = async (hidden: boolean) => {
+    const updated = { ...profileRef.current, hideFromLeaderboard: hidden };
+    applyProfile(updated);
+    if (isFirebaseConfigured) {
+      try {
+        await FirestoreService.setLeaderboardVisibility(updated, hidden);
+      } catch (e) {
+        log.warn('App', 'Could not update leaderboard visibility:', e);
+      }
+    }
+    refreshLeaderboard('weekly');
+  };
+
+  // Solo engine
   const startSoloGame = (diff: Difficulty) => {
     const config = DIFFICULTY_CONFIGS[diff];
     const target = Math.floor(Math.random() * (config.max - config.min + 1)) + config.min;
@@ -313,7 +393,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const attemptCount = newAttempts.length;
     const isWon = result === 'CORRECT';
     const isGameOver = !isWon && attemptCount >= soloGame.maxAttempts;
-
     const finalScore = isWon
       ? calculateSoloScore(soloGame.difficulty, attemptCount, soloGame.hintsUsed)
       : 0;
@@ -326,12 +405,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       score: finalScore,
       endTime: isWon || isGameOver ? Date.now() : undefined,
     };
-
     setSoloGame(updatedSession);
 
     if (isWon || isGameOver) {
+      const current = profileRef.current;
+      const clientMatchId = soloMatchId(current.uid, soloGame.startTime);
       const matchItem: MatchHistoryItem = {
-        id: `m_${Date.now()}`,
+        id: clientMatchId,
         date: new Date().toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
@@ -347,39 +427,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         durationSeconds: Math.round((Date.now() - soloGame.startTime) / 1000),
       };
 
-      const newHistory = [matchItem, ...matchHistory];
-      setMatchHistory(newHistory);
-      StorageService.saveMatchHistory(newHistory, profile.uid);
+      prependHistory(matchHistoryRef, setHistory, matchItem, current.uid);
 
-      const newTotal = profile.stats.gamesPlayed + 1;
-      const newWins = isWon ? profile.stats.wins + 1 : profile.stats.wins;
-      const newCurrentStreak = isWon ? profile.stats.currentStreak + 1 : 0;
-      const newBestStreak = Math.max(profile.stats.bestStreak || 0, newCurrentStreak);
-      const prevAttemptsTotal = (profile.stats.averageAttempts || 0) * profile.stats.gamesPlayed;
-      const newAverageAttempts = Number(((prevAttemptsTotal + attemptCount) / newTotal).toFixed(1));
-
+      const newTotal = current.stats.gamesPlayed + 1;
+      const newWins = isWon ? current.stats.wins + 1 : current.stats.wins;
+      const newCurrentStreak = isWon ? current.stats.currentStreak + 1 : 0;
+      const prevAttemptsTotal = (current.stats.averageAttempts || 0) * current.stats.gamesPlayed;
       const updatedProfile: UserProfile = {
-        ...profile,
-        points: profile.points + finalScore,
+        ...current,
+        points: current.points + finalScore,
         stats: {
-          ...profile.stats,
+          ...current.stats,
           gamesPlayed: newTotal,
           wins: newWins,
-          losses: isWon ? profile.stats.losses : profile.stats.losses + 1,
+          losses: isWon ? current.stats.losses : current.stats.losses + 1,
           winRate: Math.round((newWins / newTotal) * 100),
-          highScore: Math.max(profile.stats.highScore, finalScore),
+          highScore: Math.max(current.stats.highScore, finalScore),
           currentStreak: newCurrentStreak,
-          bestStreak: newBestStreak,
-          averageAttempts: newAverageAttempts,
+          bestStreak: Math.max(current.stats.bestStreak || 0, newCurrentStreak),
+          averageAttempts: Number(((prevAttemptsTotal + attemptCount) / newTotal).toFixed(1)),
         },
       };
-      setProfile(updatedProfile);
-      StorageService.saveProfile(updatedProfile);
-
-      // Sync real match and points to Firestore
-      FirestoreService.recordGameResult(updatedProfile, matchItem).then(() => {
-        refreshLeaderboard('weekly');
-      });
+      applyProfile(updatedProfile);
+      awardMatch(updatedProfile, matchItem, clientMatchId, soloGame.hintsUsed).then(() =>
+        refreshLeaderboard('weekly')
+      );
 
       setTimeout(() => {
         router.replace(isWon ? ROUTES.soloResult : ROUTES.gameOver);
@@ -399,9 +471,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const surrenderSoloGame = () => {
     if (!soloGame) return;
-    const attemptCount = soloGame.attempts.length;
+    const current = profileRef.current;
+    const clientMatchId = soloMatchId(current.uid, soloGame.startTime);
     const matchItem: MatchHistoryItem = {
-      id: `m_${Date.now()}`,
+      id: clientMatchId,
       date: new Date().toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
@@ -412,32 +485,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       difficultyOrMode: soloGame.difficulty,
       outcome: 'Defeat',
       targetNumber: soloGame.targetNumber,
-      attempts: attemptCount,
+      attempts: soloGame.attempts.length,
       score: 0,
       durationSeconds: Math.round((Date.now() - soloGame.startTime) / 1000),
     };
 
-    const newHistory = [matchItem, ...matchHistory];
-    setMatchHistory(newHistory);
-    StorageService.saveMatchHistory(newHistory, profile.uid);
+    prependHistory(matchHistoryRef, setHistory, matchItem, current.uid);
 
-    const newTotal = profile.stats.gamesPlayed + 1;
+    const newTotal = current.stats.gamesPlayed + 1;
     const updatedProfile: UserProfile = {
-      ...profile,
+      ...current,
       stats: {
-        ...profile.stats,
+        ...current.stats,
         gamesPlayed: newTotal,
-        losses: profile.stats.losses + 1,
-        winRate: Math.round((profile.stats.wins / newTotal) * 100),
+        losses: current.stats.losses + 1,
+        winRate: Math.round((current.stats.wins / newTotal) * 100),
         currentStreak: 0,
       },
     };
-    setProfile(updatedProfile);
-    StorageService.saveProfile(updatedProfile);
-
-    FirestoreService.recordGameResult(updatedProfile, matchItem).then(() => {
-      refreshLeaderboard('weekly');
-    });
+    applyProfile(updatedProfile);
+    awardMatch(updatedProfile, matchItem, clientMatchId, soloGame.hintsUsed).then(() =>
+      refreshLeaderboard('weekly')
+    );
 
     setSoloGame({
       ...soloGame,
@@ -449,75 +518,145 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     router.replace(ROUTES.gameOver);
   };
 
-  // Real-Time Multiplayer Room Handlers
-  const lastProcessedRoomResultRef = useRef<string | null>(null);
+  // Room subscription + referee duties
+  const subscribeAndHandleRoom = useCallback(
+    (roomId: string) => {
+      roomUnsubscribeRef.current?.();
 
-  const subscribeAndHandleRoom = (roomId: string) => {
-    if (roomUnsubscribeRef.current) {
-      roomUnsubscribeRef.current();
-    }
+      roomUnsubscribeRef.current = FirestoreMultiplayer.subscribeToRoom(
+        roomId,
+        (updated) => {
+          setActiveRoom(updated);
 
-    roomUnsubscribeRef.current = FirestoreMultiplayer.subscribeToRoom(roomId, (updated) => {
-      setActiveRoom(updated);
+          if (updated.status === 'RESULT' && updated.winnerUid && updated.roundId) {
+            const resultKey = `${updated.roomId}:${updated.roundId}`;
+            if (lastProcessedRoomResultRef.current === resultKey) return;
+            lastProcessedRoomResultRef.current = resultKey;
 
-      if (updated.status === 'RESULT') {
-        const resultKey = `${updated.roomId}_${updated.guesses.length}_${updated.winnerUid}`;
-        if (lastProcessedRoomResultRef.current !== resultKey && updated.winnerUid) {
-          lastProcessedRoomResultRef.current = resultKey;
-          const isMeWinner = updated.winnerUid === profile.uid;
-          const pointsEarned = isMeWinner ? MULTIPLAYER_POINTS.WIN : MULTIPLAYER_POINTS.LOSS;
-          const myAttempts = updated.guesses.filter((g) => g.uid === profile.uid).length;
+            const me = profileRef.current;
+            const isParticipant = updated.hostUid === me.uid || updated.guestUid === me.uid;
+            if (!isParticipant) return;
 
-          const matchItem: MatchHistoryItem = {
-            id: `mp_${Date.now()}`,
-            date: new Date().toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-            mode: 'Multiplayer',
-            difficultyOrMode: updated.selectedMode,
-            outcome: isMeWinner ? 'Victory' : 'Defeat',
-            targetNumber: updated.targetNumber || 0,
-            attempts: myAttempts,
-            score: pointsEarned,
-            durationSeconds: Math.round((Date.now() - updated.createdAt) / 1000),
-          };
+            const isWinner = updated.winnerUid === me.uid;
+            const points = isWinner ? MULTIPLAYER_POINTS.WIN : MULTIPLAYER_POINTS.LOSS;
+            const myAttempts = updated.guesses.filter((g) => g.uid === me.uid).length;
+            const clientMatchId = duelMatchId(updated.roomId, updated.roundId, me.uid);
 
-          const newHistory = [matchItem, ...matchHistory];
-          setMatchHistory(newHistory);
-          StorageService.saveMatchHistory(newHistory, profile.uid);
+            const matchItem: MatchHistoryItem = {
+              id: clientMatchId,
+              date: new Date().toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+              mode: 'Multiplayer',
+              difficultyOrMode: updated.selectedMode,
+              outcome: isWinner ? 'Victory' : 'Defeat',
+              targetNumber: updated.targetNumber || 0,
+              attempts: myAttempts,
+              score: points,
+              durationSeconds: Math.round((Date.now() - updated.createdAt) / 1000),
+            };
 
-          const newTotal = profile.stats.gamesPlayed + 1;
-          const newWins = isMeWinner ? profile.stats.wins + 1 : profile.stats.wins;
-          const newStreak = isMeWinner ? profile.stats.currentStreak + 1 : 0;
-          const updatedProfile: UserProfile = {
-            ...profile,
-            points: profile.points + pointsEarned,
-            stats: {
-              ...profile.stats,
-              gamesPlayed: newTotal,
-              wins: newWins,
-              losses: isMeWinner ? profile.stats.losses : profile.stats.losses + 1,
-              winRate: Math.round((newWins / newTotal) * 100),
-              currentStreak: newStreak,
-              bestStreak: Math.max(profile.stats.bestStreak || 0, newStreak),
-            },
-          };
-          setProfile(updatedProfile);
-          StorageService.saveProfile(updatedProfile);
+            prependHistory(matchHistoryRef, setHistory, matchItem, me.uid);
 
-          FirestoreService.recordGameResult(updatedProfile, matchItem).then(() => {
-            refreshLeaderboard('weekly');
-          });
-        }
-      }
+            const newTotal = me.stats.gamesPlayed + 1;
+            const newWins = isWinner ? me.stats.wins + 1 : me.stats.wins;
+            const newStreak = isWinner ? me.stats.currentStreak + 1 : 0;
+            const updatedProfile: UserProfile = {
+              ...me,
+              points: me.points + points,
+              stats: {
+                ...me.stats,
+                gamesPlayed: newTotal,
+                wins: newWins,
+                losses: isWinner ? me.stats.losses : me.stats.losses + 1,
+                winRate: Math.round((newWins / newTotal) * 100),
+                currentStreak: newStreak,
+                bestStreak: Math.max(me.stats.bestStreak || 0, newStreak),
+              },
+            };
+            applyProfile(updatedProfile);
+            awardMatch(updatedProfile, matchItem, clientMatchId, 0).then(() =>
+              refreshLeaderboard('weekly')
+            );
+          }
+        },
+        (error) => log.warn('App', 'Room listener failed:', error)
+      );
+    },
+    [applyProfile, awardMatch, refreshLeaderboard, setHistory]
+  );
+
+  // Host presses Start → the referee's client begins the round.
+  useEffect(() => {
+    if (!activeRoom || activeRoom.status !== 'CONFIRMING') return;
+    const referee = refereeFor(activeRoom.selectedMode, activeRoom.hostUid, activeRoom.guestUid);
+    if (referee !== profileRef.current.uid) return;
+    const guard = `${activeRoom.roomId}:start`;
+    if (lastStartedRoundRef.current === guard) return;
+
+    lastStartedRoundRef.current = guard;
+    const secret = Math.floor(Math.random() * 100) + 1;
+    refereeSecretRef.current = { roomId: activeRoom.roomId, secret };
+
+    FirestoreMultiplayer.startRound(activeRoom.roomId, profileRef.current.uid).catch((e) => {
+      lastStartedRoundRef.current = null;
+      log.warn('App', 'Could not start round:', e);
     });
-  };
+  }, [activeRoom]);
+
+  // Referee evaluates guesses queued by the guesser.
+  useEffect(() => {
+    if (!activeRoom || activeRoom.status !== 'PLAYING') return;
+    const pending = activeRoom.pendingGuess;
+    const secret = refereeSecretRef.current;
+    if (!pending || !secret || secret.roomId !== activeRoom.roomId) return;
+    if (activeRoom.setterUid !== profileRef.current.uid) return;
+
+    FirestoreMultiplayer.evaluatePendingGuess(
+      activeRoom.roomId,
+      profileRef.current.uid,
+      secret.secret
+    ).catch((e) => log.warn('App', 'Could not evaluate guess:', e));
+  }, [activeRoom]);
+
+  // Both players ready → the referee deals a fresh round.
+  useEffect(() => {
+    if (!activeRoom || activeRoom.status !== 'RESULT') return;
+    if (activeRoom.rematchAgreed.length < 2) return;
+    const referee = refereeFor(activeRoom.selectedMode, activeRoom.hostUid, activeRoom.guestUid);
+    if (referee !== profileRef.current.uid) return;
+    const guard = `${activeRoom.roomId}:${activeRoom.roundId}:rematch`;
+    if (lastStartedRoundRef.current === guard) return;
+
+    lastStartedRoundRef.current = guard;
+    const secret = Math.floor(Math.random() * 100) + 1;
+    refereeSecretRef.current = { roomId: activeRoom.roomId, secret };
+    FirestoreMultiplayer.startRound(activeRoom.roomId, profileRef.current.uid).catch((e) => {
+      lastStartedRoundRef.current = null;
+      log.warn('App', 'Could not start rematch:', e);
+    });
+  }, [activeRoom]);
+
+  // Turn timer: only the referee writes.
+  useEffect(() => {
+    if (!activeRoom || activeRoom.status !== 'PLAYING') return;
+    if (activeRoom.setterUid !== profileRef.current.uid) return;
+    const deadline = activeRoom.turnDeadline;
+    if (!deadline) return;
+
+    const delay = Math.max(0, deadline - Date.now()) + 300;
+    const timer = setTimeout(() => {
+      FirestoreMultiplayer.passExpiredTurn(activeRoom.roomId, profileRef.current.uid).catch(() => {});
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [activeRoom]);
 
   const createMultiplayerRoom = async (): Promise<MultiplayerRoom> => {
-    const room = await FirestoreMultiplayer.createRoom(profile.uid, profile.displayName);
+    const me = profileRef.current;
+    const room = await FirestoreMultiplayer.createRoom(me.uid, me.displayName);
     setActiveRoom(room);
     subscribeAndHandleRoom(room.roomId);
     router.push(ROUTES.duelRoom);
@@ -525,7 +664,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const joinMultiplayerRoom = async (code: string) => {
-    const res = await FirestoreMultiplayer.joinRoom(code, profile.uid, profile.displayName);
+    const me = profileRef.current;
+    const res = await FirestoreMultiplayer.joinRoom(code, me.uid, me.displayName);
     if (res.success && res.room) {
       setActiveRoom(res.room);
       subscribeAndHandleRoom(res.room.roomId);
@@ -537,45 +677,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const setRoomMode = async (mode: any) => {
     if (!activeRoom) return;
-    await FirestoreMultiplayer.setMode(activeRoom.roomId, mode);
+    await FirestoreMultiplayer.setMode(activeRoom.roomId, mode, profileRef.current.uid);
   };
 
-  const startMultiplayerGame = async (secret?: number) => {
+  const startMultiplayerGame = async (_secret?: number) => {
     if (!activeRoom) return;
-    await FirestoreMultiplayer.startRound(activeRoom.roomId, secret);
+    await FirestoreMultiplayer.requestStart(activeRoom.roomId, profileRef.current.uid);
   };
 
-  const submitMultiplayerGuess = async (guessNum: number) => {
-    if (!activeRoom) return null;
-    const res = await FirestoreMultiplayer.submitGuess(
-      activeRoom.roomId,
-      profile.uid,
-      profile.displayName,
-      guessNum
-    );
-    return res;
+  const submitMultiplayerGuess = async (guessNumber: number) => {
+    if (!activeRoom) return { ok: false, error: 'No active room.' };
+    const me = profileRef.current;
+    const secret = refereeSecretRef.current;
+
+    try {
+      if (activeRoom.setterUid === me.uid && secret?.roomId === activeRoom.roomId) {
+        const result = await FirestoreMultiplayer.submitRefereeGuess(
+          activeRoom.roomId,
+          me.uid,
+          me.displayName,
+          guessNumber,
+          secret.secret
+        );
+        return { ok: true, result: result || undefined };
+      }
+
+      const queued = await FirestoreMultiplayer.submitPendingGuess(
+        activeRoom.roomId,
+        me.uid,
+        me.displayName,
+        guessNumber
+      );
+      return queued.queued ? { ok: true } : { ok: false, error: queued.error };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
   };
 
   const requestRematch = async () => {
     if (!activeRoom) return;
-    await FirestoreMultiplayer.requestRematch(activeRoom.roomId, profile.uid);
+    await FirestoreMultiplayer.requestRematch(activeRoom.roomId, profileRef.current.uid);
   };
 
   const leaveRoom = async () => {
     if (activeRoom) {
-      await FirestoreMultiplayer.leaveRoom(activeRoom.roomId);
+      await FirestoreMultiplayer.leaveRoom(activeRoom.roomId, profileRef.current.uid).catch(() => {});
     }
-    if (roomUnsubscribeRef.current) {
-      roomUnsubscribeRef.current();
-      roomUnsubscribeRef.current = null;
-    }
+    roomUnsubscribeRef.current?.();
+    roomUnsubscribeRef.current = null;
+    refereeSecretRef.current = null;
+    lastStartedRoundRef.current = null;
     setActiveRoom(null);
     router.replace(ROUTES.dashboard);
   };
 
   const clearMatchHistory = async () => {
-    await StorageService.clearHistory(profile.uid);
-    setMatchHistory([]);
+    await StorageService.clearHistory(profileRef.current.uid);
+    setHistory([]);
   };
 
   return (
@@ -589,8 +747,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetPasswordEmail,
         updateDisplayName,
         logout,
+        deleteAccount,
         settings,
         updateSettings,
+        setLeaderboardHidden,
         soloGame,
         startSoloGame,
         submitSoloGuess,
@@ -609,6 +769,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearMatchHistory,
         leaderboardUsers,
         refreshLeaderboard,
+        pendingSync,
       }}
     >
       {children}

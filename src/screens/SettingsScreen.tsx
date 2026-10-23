@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,15 @@ import {
   ScrollView,
   Switch,
   Alert,
+  Modal,
+  TextInput,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useApp } from '../context/AppContext';
 import { ROUTES } from '../lib/routes';
+import { PRIVACY_URL } from '../constants/links';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
 
@@ -22,7 +26,14 @@ export const SettingsScreen: React.FC = () => {
     updateSettings,
     clearMatchHistory,
     logout,
+    deleteAccount,
+    setLeaderboardHidden,
+    pendingSync,
   } = useApp();
+
+  const [deleteVisible, setDeleteVisible] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const handleClearHistory = () => {
     Alert.alert(
@@ -40,6 +51,36 @@ export const SettingsScreen: React.FC = () => {
             } catch (err: any) {
               Alert.alert('Error', err?.message || 'Could not clear history.');
             }
+          },
+        },
+      ]
+    );
+  };
+
+  const confirmDelete = async () => {
+    setDeleting(true);
+    const res = await deleteAccount(profile.isGuest ? undefined : deletePassword);
+    setDeleting(false);
+    if (res.success) {
+      setDeleteVisible(false);
+      setDeletePassword('');
+    } else {
+      Alert.alert('Could not delete account', res.error);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete account?',
+      'This permanently removes your profile, history, leaderboard entries and sign-in. It cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            if (profile.isGuest) void confirmDelete();
+            else setDeleteVisible(true);
           },
         },
       ]
@@ -167,6 +208,44 @@ export const SettingsScreen: React.FC = () => {
         {/* Match History & Data Management */}
         <Text style={styles.sectionHeader}>DATA & STORAGE</Text>
         <View style={styles.settingsGroup}>
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIconBox, { backgroundColor: 'rgba(52, 211, 153, 0.12)' }]}>
+                <Ionicons name="trophy-outline" size={18} color={COLORS.secondary} />
+              </View>
+              <View style={styles.settingMeta}>
+                <Text style={styles.settingTitle}>Show Me on Leaderboards</Text>
+                <Text style={styles.settingSub}>
+                  {profile.hideFromLeaderboard
+                    ? 'Hidden - your entries stay private'
+                    : 'Visible to other players'}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={!profile.hideFromLeaderboard}
+              onValueChange={(visible) => setLeaderboardHidden(!visible)}
+              trackColor={{ false: COLORS.surfaceContainerHigh, true: COLORS.secondary }}
+              thumbColor={COLORS.onSurface}
+            />
+          </View>
+
+          {pendingSync > 0 && (
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIconBox, { backgroundColor: 'rgba(251, 191, 36, 0.12)' }]}>
+                  <Ionicons name="cloud-upload-outline" size={18} color={COLORS.primaryContainer} />
+                </View>
+                <View style={styles.settingMeta}>
+                  <Text style={styles.settingTitle}>
+                    {pendingSync} result{pendingSync === 1 ? '' : 's'} waiting to sync
+                  </Text>
+                  <Text style={styles.settingSub}>Uploads automatically when you are online</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
           <TouchableOpacity
             style={styles.settingItemAction}
             onPress={handleClearHistory}
@@ -206,6 +285,23 @@ export const SettingsScreen: React.FC = () => {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={styles.navRow}
+            onPress={() => Linking.openURL(PRIVACY_URL)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIconBox, { backgroundColor: 'rgba(148, 163, 184, 0.14)' }]}>
+                <Ionicons name="shield-checkmark-outline" size={18} color={COLORS.onSurfaceVariant} />
+              </View>
+              <View style={styles.settingMeta}>
+                <Text style={styles.settingTitle}>Privacy Policy</Text>
+                <Text style={styles.settingSub}>What Guessify stores and why</Text>
+              </View>
+            </View>
+            <Ionicons name="open-outline" size={18} color={COLORS.onSurfaceVariant} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.navRow, { borderBottomWidth: 0 }]}
             onPress={() => router.push(ROUTES.about)}
             activeOpacity={0.7}
@@ -234,7 +330,58 @@ export const SettingsScreen: React.FC = () => {
             {profile.isGuest ? 'EXIT GUEST SESSION' : 'SIGN OUT'}
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.deleteBtn}
+          onPress={handleDeleteAccount}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="person-remove-outline" size={18} color={COLORS.error} />
+          <Text style={styles.logoutText}>DELETE ACCOUNT</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.legalNote}>
+          Deleting removes your profile, match history and leaderboard entries. You can also request
+          deletion from the web page linked in the Privacy Policy.
+        </Text>
       </ScrollView>
+
+      <Modal
+        visible={deleteVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Confirm deletion</Text>
+            <Text style={styles.modalSub}>
+              Enter your password to permanently delete {profile.email}.
+            </Text>
+            <TextInput
+              value={deletePassword}
+              onChangeText={setDeletePassword}
+              placeholder="Password"
+              placeholderTextColor={COLORS.outline}
+              secureTextEntry
+              style={styles.modalInput}
+              autoCapitalize="none"
+            />
+            <TouchableOpacity
+              style={[styles.modalConfirm, deleting && { opacity: 0.5 }]}
+              disabled={deleting || deletePassword.length < 6}
+              onPress={confirmDelete}
+            >
+              <Text style={styles.modalConfirmText}>
+                {deleting ? 'DELETING...' : 'DELETE MY ACCOUNT'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setDeleteVisible(false)} style={styles.modalCancel}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -415,5 +562,81 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 1,
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 44,
+    borderRadius: RADIUS.full,
+    marginTop: 10,
+  },
+  legalNote: {
+    color: COLORS.onSurfaceVariant,
+    fontSize: 10,
+    lineHeight: 15,
+    textAlign: 'center',
+    marginTop: 12,
+    paddingHorizontal: 12,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: COLORS.surfaceContainerLow,
+    borderRadius: RADIUS.xl,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: COLORS.outlineVariant,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: COLORS.onSurface,
+    marginBottom: 6,
+  },
+  modalSub: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.onSurfaceVariant,
+    marginBottom: 16,
+  },
+  modalInput: {
+    height: 48,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.outlineVariant,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 14,
+    color: COLORS.onSurface,
+    marginBottom: 14,
+  },
+  modalConfirm: {
+    height: 46,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalConfirmText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  modalCancel: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  modalCancelText: {
+    color: COLORS.onSurfaceVariant,
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -8,9 +8,13 @@ import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
 import { GlowCard } from '../components/common/GlowCard';
 
 export const LeaderboardScreen: React.FC = () => {
-  const { leaderboardUsers, refreshLeaderboard, profile } = useApp();
+  const { leaderboardUsers, refreshLeaderboard } = useApp();
   const [period, setPeriod] = useState<'weekly' | 'monthly' | 'allTime'>('weekly');
   const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    refreshLeaderboard('weekly');
+  }, [refreshLeaderboard]);
 
   const handlePeriodChange = async (newPeriod: 'weekly' | 'monthly' | 'allTime') => {
     setPeriod(newPeriod);
@@ -28,15 +32,7 @@ export const LeaderboardScreen: React.FC = () => {
   const top1 = leaderboardUsers.find((u) => u.rank === 1);
   const top2 = leaderboardUsers.find((u) => u.rank === 2);
   const top3 = leaderboardUsers.find((u) => u.rank === 3);
-  const currentUser = leaderboardUsers.find((u) => u.isCurrentUser) || (profile ? {
-    uid: profile.uid,
-    rank: 1,
-    displayName: profile.displayName || profile.email.split('@')[0] || 'Cipher',
-    points: profile.points || 0,
-    tier: (profile.stats.winRate >= 80 ? 'Master' : profile.stats.winRate >= 50 ? 'Diamond' : 'Gold') as any,
-    wins: profile.stats.wins,
-    isCurrentUser: true,
-  } : null);
+  const currentUser = leaderboardUsers.find((u) => u.isCurrentUser) || null;
 
   return (
     <View style={styles.container}>

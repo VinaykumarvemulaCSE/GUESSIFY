@@ -1,11 +1,10 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-// @ts-ignore - getReactNativePersistence is exported by React Native entry of firebase/auth
+// @ts-ignore - getReactNativePersistence is exported by the React Native entry of firebase/auth
 import { initializeAuth, getReactNativePersistence, getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { initializeFirestore, Firestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { log } from '../lib/log';
+import { log } from './log';
 
-// Read Expo Public Environment Variables
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || '',
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || '',
@@ -16,9 +15,7 @@ const firebaseConfig = {
 };
 
 export const isFirebaseConfigured = Boolean(
-  firebaseConfig.apiKey &&
-  firebaseConfig.apiKey.length > 5 &&
-  firebaseConfig.projectId
+  firebaseConfig.apiKey && firebaseConfig.apiKey.length > 5 && firebaseConfig.projectId
 );
 
 let app: FirebaseApp | null = null;
@@ -27,8 +24,9 @@ let db: Firestore | null = null;
 
 if (isFirebaseConfigured) {
   try {
-    if (getApps().length === 0) {
-      app = initializeApp(firebaseConfig);
+    const isFirstInit = getApps().length === 0;
+    app = isFirstInit ? initializeApp(firebaseConfig) : getApp();
+    if (isFirstInit) {
       try {
         auth = initializeAuth(app, {
           persistence: getReactNativePersistence(AsyncStorage),
@@ -36,18 +34,18 @@ if (isFirebaseConfigured) {
       } catch {
         auth = getAuth(app);
       }
-      db = getFirestore(app);
-      log.info('Firebase', 'Initialized successfully with projectId:', firebaseConfig.projectId);
     } else {
-      app = getApp();
       auth = getAuth(app);
-      db = getFirestore(app);
     }
+    // Long polling keeps realtime listeners alive on mobile networks where
+    // the default WebChannel transport stalls (same fix as BloodLine).
+    db = initializeFirestore(app, { experimentalForceLongPolling: true });
+    log.info('Firebase', 'Initialized with projectId:', firebaseConfig.projectId);
   } catch (error) {
     log.warn('Firebase', 'Initialization error:', error);
   }
 } else {
-  log.info('Firebase', 'Running in offline / simulation mode. (Fill keys in .env to connect to live Firebase)');
+  log.info('Firebase', 'Not configured - add EXPO_PUBLIC_FIREBASE_* keys to .env');
 }
 
 export { app, auth, db };
