@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon.png" width="112" alt="Guessify app icon" />
+  <img src="assets/ICON-1.png" width="112" alt="Guessify app icon" />
 </p>
 
 <h1 align="center">Guessify</h1>
